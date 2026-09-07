@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Liar's Dice · The Dead Man's Hand</title>
+<meta name="description" content="A table of Liar's Dice aboard the Dead Man's Hand. Five dice, ones are wild, and the house is a crocodile.">
+<meta name="theme-color" content="#0E0A10">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2314231B'/%3E%3Cg fill='%2345F09A'%3E%3Ccircle cx='10' cy='10' r='3'/%3E%3Ccircle cx='22' cy='22' r='3'/%3E%3Ccircle cx='16' cy='16' r='3'/%3E%3C/g%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rye&family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@500;600;700&display=swap">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div class="grain" aria-hidden="true"></div>
+
+<!-- ============ LANDING ============ -->
+<main id="view-landing" class="view">
+  <div class="landing">
+    <div class="sigils" aria-hidden="true"></div>
+    <p class="eyebrow">Chapter fifteen &middot; The Drowned Crossroads</p>
+    <h1 class="logo">Liar's&nbsp;Dice</h1>
+    <p class="logo-sub">at the <em>Dead Man's Hand</em></p>
+    <p class="tagline">Five dice apiece. Ones are wild. The house is a crocodile,
+      and the house does not lose.</p>
+
+    <div class="landing-actions">
+      <button class="btn primary lg" id="btnCreate">Deal a new table</button>
+      <div class="joinbox">
+        <label for="joinCode">Have a code?</label>
+        <div class="joinrow">
+          <input id="joinCode" type="text" inputmode="latin" autocomplete="off"
+                 maxlength="4" placeholder="ABCD" aria-label="Four letter table code">
+          <button class="btn" id="btnJoin">Sit down</button>
+        </div>
+      </div>
+    </div>
+    <p class="fineprint" id="landingNote">The dealer makes the table and passes the code around.</p>
+  </div>
+</main>
+
+<!-- ============ LOBBY ============ -->
+<main id="view-lobby" class="view" hidden>
+  <div class="shell">
+    <header class="bar">
+      <div>
+        <p class="eyebrow">Table code</p>
+        <p class="code" id="lobbyCode">····</p>
+      </div>
+      <div class="bar-actions">
+        <button class="btn ghost sm" id="btnCopyLink">Copy the link</button>
+        <button class="btn ghost sm" id="btnLeaveLobby">Leave</button>
+      </div>
+    </header>
+
+    <section class="card">
+      <h2>Who is playing</h2>
+      <div class="body">
+        <p class="hint" id="lobbyHint">Tap an empty chair to sit down.</p>
+        <ul class="chairs" id="lobbyChairs"></ul>
+      </div>
+    </section>
+
+    <section class="card" id="lobbyDealerCard" hidden>
+      <h2>Dealer</h2>
+      <div class="body">
+        <div class="field">
+          <label for="lobbyOpp">Who are they playing against?</label>
+          <select id="lobbyOpp">
+            <option value="king">Vander Boone and Lyla Webb &middot; the test of luck</option>
+            <option value="sinner">Mister Crossroads &middot; for their souls</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="lobbyNames">Seats, one per line</label>
+          <textarea id="lobbyNames" rows="4" spellcheck="false"></textarea>
+        </div>
+        <p class="hint" id="lobbyPool"></p>
+        <button class="btn primary" id="btnDeal">Deal the first round</button>
+      </div>
+    </section>
+  </div>
+</main>
+
+<!-- ============ TABLE ============ -->
+<main id="view-table" class="view" hidden>
+  <div class="shell wide">
+
+    <header class="bar">
+      <div class="bar-left">
+        <p class="eyebrow">Round <span id="hRound">1</span> &middot; <span id="hCode">····</span></p>
+        <p class="turnline" id="hTurn">&nbsp;</p>
+      </div>
+      <div class="bar-actions">
+        <button class="btn ghost sm" id="btnCast" title="Hide your own hand for screen sharing">Cast</button>
+        <button class="btn ghost sm" id="btnSeatSwap">Seat</button>
+      </div>
+    </header>
+
+    <div class="stage">
+      <!-- felt with the seats round it -->
+      <section class="felt" id="felt">
+        <div class="felt-inner">
+          <div class="pot">
+            <p class="eyebrow">On the table</p>
+            <p class="pot-n" id="potN">0</p>
+            <p class="pot-l">dice</p>
+          </div>
+          <div class="bidcard" id="bidcard">
+            <p class="eyebrow">Standing bid</p>
+            <p class="bid-v" id="bidV">&mdash;</p>
+            <p class="bid-by" id="bidBy">nobody has opened</p>
+          </div>
+        </div>
+        <ul class="seats" id="seats"></ul>
+      </section>
+
+      <!-- your hand + controls -->
+      <section class="hand-panel" id="handPanel">
+        <div class="hand-head">
+          <p class="eyebrow" id="handWho">Your hand</p>
+          <p class="hand-meta" id="handMeta"></p>
+        </div>
+        <div class="dice" id="dice"></div>
+        <div id="handExtra"></div>
+        <div class="controls" id="controls"></div>
+      </section>
+    </div>
+
+    <section class="card" id="traitCard">
+      <h2>Special traits &middot; <span id="traitsLeft">3 uses</span> left</h2>
+      <div class="body"><div class="traits" id="traits"></div></div>
+    </section>
+
+    <section class="card" id="dealerCard" hidden>
+      <h2>Dealer</h2>
+      <div class="body" id="dealerBody"></div>
+    </section>
+
+    <section class="card">
+      <h2>Play by play</h2>
+      <div class="body"><ul class="log" id="log"></ul></div>
+    </section>
+  </div>
+</main>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<!-- reveal overlay -->
+<div class="overlay" id="reveal" hidden>
+  <div class="reveal-box">
+    <p class="eyebrow" id="revEyebrow">Challenge</p>
+    <h2 class="reveal-h" id="revH"></h2>
+    <div class="reveal-hands" id="revHands"></div>
+    <div class="reveal-count">
+      <span class="rc-n" id="revCount">0</span>
+      <span class="rc-l" id="revLabel"></span>
+    </div>
+    <p class="reveal-verdict" id="revVerdict"></p>
+    <button class="btn primary" id="revClose">Carry on</button>
+  </div>
+</div>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
