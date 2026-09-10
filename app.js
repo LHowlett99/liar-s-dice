@@ -514,46 +514,6 @@ function renderDealer(){
     : `<div class="note green"><b>You know both their hands</b>Vander and Lyla signal each other under the table.
         Play them as a pair quietly working together, and let it show once or twice.</div>`;
 
-  const turnSeat = seatById(room.turn);
-  const housesTurn = room.phase === "bidding" && turnSeat && turnSeat.kind === "npc";
-  if (housesTurn){
-    h += `<div class="note mag" style="margin-top:12px">
-      <b>${esc(turnSeat.name)}'s move</b>
-      <div class="bidrow" style="margin-top:8px">
-        <div class="field" style="margin:0">
-          <label>How many</label>
-          <div class="stepper">
-            <button id="hMinus" aria-label="Fewer">&minus;</button>
-            <div class="n">${draft.count}</div>
-            <button id="hPlus" aria-label="More">+</button>
-          </div>
-        </div>
-        <div class="field" style="margin:0">
-          <label>Showing</label>
-          <div class="faces">` +
-            [1,2,3,4,5,6].map(f => `<button class="${draft.face === f ? "on" : ""}" data-hface="${f}">${dieHTML(f,"sm")}</button>`).join("") +
-          `</div>
-        </div>
-      </div>
-      <div class="actions" style="margin-top:8px">
-        <button class="btn primary" id="hBid">Bid ${draft.count} &times; ${draft.face}</button>
-        ${room.bid ? `<button class="btn danger" id="hChal">Challenge</button>` : ""}
-      </div>
-    </div>`;
-  }
-
-  if (!mySeat){
-    if (room.phase === "reveal"){
-      h += `<div class="actions" style="margin-top:12px"><button class="btn primary" id="dNext">Next round</button></div>`;
-    } else if (room.phase === "over"){
-      h += `<div class="actions" style="margin-top:12px"><button class="btn primary" id="dNew">New table</button></div>`;
-    } else if (room.phase === "bidding"){
-      h += `<div class="actions" style="margin-top:12px;border-top:1px solid var(--line-soft);padding-top:12px">
-        <button class="btn ghost sm" id="dRedeal">Redeal round</button>
-        <button class="btn ghost sm" id="dNewT">New table</button></div>`;
-    }
-  }
-
   $("dealerBody").innerHTML = h;
 
   const whisper = s => `${s.name} — your hand: ${s.dice.join("  ")}   (ones are wild). ` +
@@ -565,35 +525,6 @@ function renderDealer(){
       catch { toast(whisper(s)); }
     };
   });
-  if (housesTurn){
-    const hMinus = $("hMinus"), hPlus = $("hPlus"), hBid = $("hBid"), hChal = $("hChal");
-    if (hMinus) hMinus.onclick = () => { draft.count = Math.max(1, draft.count - 1); render(); };
-    if (hPlus)  hPlus.onclick  = () => { draft.count = Math.min(potCount(), draft.count + 1); render(); };
-    $("dealerBody").querySelectorAll("[data-hface]").forEach(b => {
-      b.onclick = () => { draft.face = +b.dataset.hface; render(); };
-    });
-    if (hBid) hBid.onclick = () => {
-      if (room.bid){
-        const ok = draft.count > room.bid.count ||
-                   (draft.count === room.bid.count && draft.face > room.bid.face);
-        if (!ok) return toast("That does not raise it. Go higher on the count, the face, or both.");
-      }
-      placeBid(draft.count, draft.face);
-    };
-    if (hChal) hChal.onclick = doChallenge;
-  }
-
-  if (!mySeat){
-    const dNext = $("dNext"), dNew = $("dNew"), dRedeal = $("dRedeal"), dNewT = $("dNewT");
-    if (dNext) dNext.onclick = nextRound;
-    if (dNew) dNew.onclick = () => { room.phase = "lobby"; room.round = 0; save(); };
-    if (dRedeal) dRedeal.onclick = () => {
-      room.seats.forEach(s => { if (!s.out) s.dice = rollN(s.count); });
-      logAdd("The dealer redeals the round."); lastRound = -1; save();
-    };
-    if (dNewT) dNewT.onclick = () => { room.phase = "lobby"; room.round = 0; save(); };
-  }
-
   const pw = $("pfWin"), pl = $("pfLose");
   if (pw) pw.onclick = () => {
     room.pokerFace = null; room.reveal = null; room.phase = "bidding";

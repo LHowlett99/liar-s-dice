@@ -3,9 +3,15 @@
 A table of Liar's Dice for chapter 15 of The Crooked Moon. One link, any device.
 Each player sees only their own five dice; the dealer sees everything.
 
+**Live at <https://lhowlett99.github.io/liar-s-dice>** (repo: `liar-s-dice`).
+The rest of this file is the setup walkthrough, kept for reference or for
+standing it back up if the Firebase project ever goes away.
+
 - Ones are wild
 - Bids, permanent dice loss and elimination are tracked
-- All six special traits, three uses per player
+- All six special traits, **once each per game**, and only for the character who
+  has the proficiency. Defaults come off the party's real sheets and the dealer
+  can grant or revoke any of them in the lobby
 - Hard Read and Sly Reveal do real private reveals
 - The Sinner's pool grows by one die per character who sits down
 - A **Cast** button hides your own hand so you can share your screen
@@ -94,7 +100,23 @@ dice, counts them up, and names who lost a die. **Next round** carries on.
 
 If a player cannot get on a phone, the dealer table has a **Copy** button per
 seat that puts `Sassafras — your hand: 3 5 5 1 2 (ones are wild)` on your
-clipboard, ready to paste into a DM.
+clipboard, along with the cheats they have not spent yet, ready to paste into a DM.
+
+### Cheats
+
+Each of the six traits is once per game, not three uses from a shared pool, and a
+player only sees the ones their character is actually proficient in. The rest are
+greyed out with the proficiency they would need. The defaults:
+
+| | Hard Read | Deft Hands | Sly Reveal | Poker Face | Daring Dicer | Fated Luck |
+|---|---|---|---|---|---|---|
+| Sassafras | yes | yes | yes | yes | yes | yes |
+| Bird | yes | | | yes | | yes |
+| Fizzwick | | yes | | yes | | yes |
+| Sister Maple | yes | | | | | yes |
+
+Fated Luck needs no proficiency, so anyone gets it. Anyone not on that list starts
+with Fated Luck alone. Change any of it in the lobby before you deal.
 
 ### The two games
 
