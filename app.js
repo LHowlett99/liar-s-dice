@@ -20,6 +20,14 @@ const TRAITS = [
   { id:"daring",   name:"Daring Dicer",skill:"Dice set",         desc:"Change any number of your dice." },
   { id:"fated",    name:"Fated Luck",  skill:"Any",              desc:"Reroll every die you have left." }
 ];
+/* Cheats are granted per character sheet, once per proficiency (twice with
+   expertise). A name with no entry here gets none. */
+const PROFICIENCIES = {
+  "Sassafras":    { hardread:1, deft:2, sly:1, poker:2, daring:1, fated:1 },
+  "Sister Maple": { hardread:1 },
+  "Fizzwick":     { poker:1, deft:1 },
+  "Bird":         { hardread:1, poker:1 }
+};
 const PIPS = {1:[3],2:[1,5],3:[1,3,5],4:[1,2,4,5],5:[1,2,3,4,5],6:[1,2,6,7,4,5]};
 const LS = { room:"dmh.room", seat:"dmh.seat", dealer:"dmh.dealer" };
 
@@ -65,6 +73,24 @@ function nextSeat(fromId){
   const i = ls.findIndex(s => s.id === fromId);
   return ls.length ? ls[(i < 0 ? 0 : (i+1) % ls.length)].id : null;
 }
+function traitsFor(name){
+  const grant = PROFICIENCIES[name] || {};
+  const t = {};
+  TRAITS.forEach(tr => { t[tr.id] = { cap: grant[tr.id] || 0, used: 0 }; });
+  return t;
+}
+function traitCap(seat, id){ return (seat && seat.traits && seat.traits[id] && seat.traits[id].cap) || 0; }
+function traitUsed(seat, id){ return (seat && seat.traits && seat.traits[id] && seat.traits[id].used) || 0; }
+function traitLeft(seat, id){ return traitCap(seat, id) - traitUsed(seat, id); }
+function spendTrait(seat, id){
+  seat.traits = seat.traits || {};
+  seat.traits[id] = seat.traits[id] || { cap:0, used:0 };
+  seat.traits[id].used++;
+}
+function traitsLeftTotal(seat){
+  if (!seat || !seat.traits) return 0;
+  return Object.keys(seat.traits).reduce((a,id) => a + traitLeft(seat, id), 0);
+}
 function tallyFace(face){
   let n = 0;
   liveSeats().forEach(s => (s.dice||[]).forEach(d => {
@@ -88,14 +114,14 @@ async function save(){
 
 function makeRoom(opponent, names){
   const seats = names.map(n => ({
-    id:uid(), name:n, kind:"pc", dice:[], count:5, out:false, used:0, claimed:false
+    id:uid(), name:n, kind:"pc", dice:[], count:5, out:false, traits:traitsFor(n), claimed:false
   }));
   if (opponent === "king"){
-    seats.push({ id:uid(), name:"Vander Boone", kind:"npc", dice:[], count:5, out:false, used:0, claimed:true });
-    seats.push({ id:uid(), name:"Lyla Webb",    kind:"npc", dice:[], count:5, out:false, used:0, claimed:true });
+    seats.push({ id:uid(), name:"Vander Boone", kind:"npc", dice:[], count:5, out:false, traits:traitsFor("Vander Boone"), claimed:true });
+    seats.push({ id:uid(), name:"Lyla Webb",    kind:"npc", dice:[], count:5, out:false, traits:traitsFor("Lyla Webb"), claimed:true });
   } else {
     seats.push({ id:uid(), name:"Mister Crossroads", kind:"npc",
-                 dice:[], count:5 + names.length, out:false, used:0, claimed:true });
+                 dice:[], count:5 + names.length, out:false, traits:traitsFor("Mister Crossroads"), claimed:true });
   }
   return {
     v:2, opponent, phase:"lobby", round:0,
@@ -167,15 +193,15 @@ function nextRound(){
 
 function useTrait(t){
   const s = mySeat && seatById(mySeat);
-  if (!s || s.used >= 3 || s.out) return;
+  if (!s || s.out || traitLeft(s, t.id) <= 0) return;
 
   if (t.id === "fated"){
-    s.dice = rollN(s.dice.length); s.used++;
+    s.dice = rollN(s.dice.length); spendTrait(s, t.id);
     logAdd(`<b>${esc(s.name)}</b> calls <span class="hi">Fated Luck</span>.`);
     return save();
   }
   if (t.id === "poker"){
-    room.pokerFace = { by:s.id }; s.used++;
+    room.pokerFace = { by:s.id }; spendTrait(s, t.id);
     logAdd(`<b>${esc(s.name)}</b> plays <span class="hi">Poker Face</span>. The dealer resolves the check.`);
     return save();
   }
@@ -199,14 +225,14 @@ function trainTraitOn(targetId){
     room.reveals.push({ to:target.id, from:me.id, dice:(me.dice||[]).slice(), round:room.round });
     logAdd(`<b>${esc(me.name)}</b> makes a <span class="hi">Sly Reveal</span> to ${esc(target.name)}.`);
   }
-  me.used++; armed = null; save();
+  spendTrait(me, armed); armed = null; save();
 }
 
 function setDie(i, val){
   const me = seatById(mySeat); if (!me) return;
   me.dice[i] = val;
   if (armed === "deft"){
-    me.used++; armed = null;
+    spendTrait(me, "deft"); armed = null;
     logAdd(`<b>${esc(me.name)}</b> uses <span class="hi">Deft Hands</span>.`);
   }
   selDie = -1; save();
@@ -313,7 +339,7 @@ function renderSeats(){
     return `<li class="${cls}" data-seat="${s.id}">
       <span class="av${s.kind === "npc" ? " npc" : ""}">${esc(initials(s.name))}</span>
       <span><span class="nm">${esc(s.name)}</span>
-        <span class="st">${s.out ? "out" : (s.kind === "npc" ? "the house" : "player")} · ${3 - s.used} trait${3 - s.used === 1 ? "" : "s"}</span>
+        <span class="st">${s.out ? "out" : (s.kind === "npc" ? "the house" : "player")} · ${traitsLeftTotal(s)} trait${traitsLeftTotal(s) === 1 ? "" : "s"}</span>
         ${dice ? `<span class="mini">${dice}</span>` : ""}</span>
       <span class="cnt">${s.count}<small>dice</small></span>
     </li>`;
@@ -343,7 +369,7 @@ function renderHand(me){
 
   $("handWho").textContent = castMode ? "Hand hidden for casting" : me.name;
   $("handMeta").textContent = me.out ? "out of the game"
-    : `${me.dice.length} ${me.dice.length === 1 ? "die" : "dice"} · ${3 - me.used} trait${3 - me.used === 1 ? "" : "s"} left`;
+    : `${me.dice.length} ${me.dice.length === 1 ? "die" : "dice"} · ${traitsLeftTotal(me)} trait${traitsLeftTotal(me) === 1 ? "" : "s"} left`;
 
   if (castMode){ dice.innerHTML = hiddenHTML(me.dice.length || 5); }
   else if (me.out){ dice.innerHTML = ""; }
@@ -385,7 +411,7 @@ function renderHand(me){
   });
   const dd = $("doneDaring");
   if (dd) dd.onclick = () => {
-    const s = seatById(mySeat); s.used++;
+    const s = seatById(mySeat); spendTrait(s, "daring");
     logAdd(`<b>${esc(s.name)}</b> uses <span class="hi">Daring Dicer</span>.`);
     armed = null; selDie = -1; save();
   };
@@ -464,16 +490,21 @@ function wireControls(){
 }
 
 function renderTraits(me){
-  const left = me ? (3 - me.used) : 3;
+  const left = traitsLeftTotal(me);
   $("traitsLeft").textContent = left === 1 ? "1 use" : left + " uses";
   const wrap = $("traits");
   if (!me || me.out){
     wrap.innerHTML = `<p class="hint">No traits without a seat.</p>`; return;
   }
-  wrap.innerHTML = TRAITS.map(t => {
-    const spent = me.used >= 3;
+  const granted = TRAITS.filter(t => traitCap(me, t.id) > 0);
+  if (!granted.length){
+    wrap.innerHTML = `<p class="hint">No trait proficiencies on this sheet.</p>`; return;
+  }
+  wrap.innerHTML = granted.map(t => {
+    const remain = traitLeft(me, t.id), cap = traitCap(me, t.id);
+    const spent = remain <= 0;
     return `<button class="trait ${armed === t.id ? "armed" : ""}" data-trait="${t.id}" ${spent ? "disabled" : ""}>
-      <b>${t.name}</b><span>${t.skill} · ${t.desc}</span></button>`;
+      <b>${t.name}</b><span>${t.skill} · ${t.desc} · ${remain}/${cap} left</span></button>`;
   }).join("");
   wrap.querySelectorAll("[data-trait]").forEach(b => {
     b.onclick = () => useTrait(TRAITS.find(t => t.id === b.dataset.trait));
@@ -488,7 +519,7 @@ function renderDealer(){
     room.seats.map(s => `<tr>
       <td>${esc(s.name)}${s.out ? " <span class='st'>out</span>" : ""}</td>
       <td><span class="mini">${(s.dice||[]).length ? handHTML(s.dice,"sm") : "—"}</span></td>
-      <td class="n">${3 - s.used}</td>
+      <td class="n">${traitsLeftTotal(s)}</td>
       <td>${(s.dice||[]).length && !s.out ? `<button class="btn ghost sm" data-wh="${s.id}">Copy</button>` : "—"}</td>
     </tr>`).join("") + `</tbody></table></div>`;
 
@@ -517,7 +548,7 @@ function renderDealer(){
   $("dealerBody").innerHTML = h;
 
   const whisper = s => `${s.name} — your hand: ${s.dice.join("  ")}   (ones are wild). ` +
-    `${3 - s.used} trait use${3 - s.used === 1 ? "" : "s"} left.`;
+    `${traitsLeftTotal(s)} trait use${traitsLeftTotal(s) === 1 ? "" : "s"} left.`;
   $("dealerBody").querySelectorAll("[data-wh]").forEach(b => {
     b.onclick = async () => {
       const s = seatById(b.dataset.wh);
