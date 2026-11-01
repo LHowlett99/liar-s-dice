@@ -279,7 +279,7 @@ function sfxDiff(prev, cur){
   const traitsLeft = r => (r.seats || []).reduce((a, s) => a + Object.keys(s.traits || {}).reduce((b, k) => b + (s.traits[k].cap - s.traits[k].used), 0), 0);
   if (cur.phase === "over" && prev.phase !== "over") return sfx.over();
   if (cur.reveal && (!prev.reveal || prev.reveal.id !== cur.reveal.id)) return sfx.reveal();
-  if (cur.phase === "bidding" && (cur.round || 0) > (prev.round || 0)){
+  if (cur.phase === "bidding" && ((cur.round || 0) > (prev.round || 0) || prev.phase === "lobby")){
     const was = (prev.seats || []).reduce((a, s) => a + s.count, 0), now = (cur.seats || []).reduce((a, s) => a + s.count, 0);
     if (now < was) sfx.lose();
     return sfx.deal();
