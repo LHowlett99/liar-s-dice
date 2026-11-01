@@ -516,7 +516,7 @@ body[data-theme="landing"] #btnCreate{
 .divider span{flex:1;height:1px;background:linear-gradient(90deg,transparent,rgba(var(--g),.6))}
 .divider span:last-child{background:linear-gradient(270deg,transparent,rgba(var(--g),.6))}
 .divider i{font-style:normal;font-size:10px}
-.landing .tagline{margin-top:16px;max-width:54ch}
+.landing .tagline{margin-top:16px;max-width:54ch;text-wrap:balance}
 
 .motes{position:fixed;inset:0;pointer-events:none;overflow:hidden;z-index:0}
 .motes i{position:absolute;bottom:-12px;left:var(--x);width:3px;height:3px;border-radius:50%;
