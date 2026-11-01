@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Liar's Dice · The Dead Man's Hand</title>
-<meta name="description" content="A table of Liar's Dice aboard the Dead Man's Hand. Five dice, ones are wild, and the house is a crocodile.">
+<meta name="description" content="A table of Liar's Dice aboard the Dead Man's Hand. Five dice, ones are wild, and everyone is lying.">
 <meta name="theme-color" content="#0E0A10">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2314231B'/%3E%3Cg fill='%2345F09A'%3E%3Ccircle cx='10' cy='10' r='3'/%3E%3Ccircle cx='22' cy='22' r='3'/%3E%3Ccircle cx='16' cy='16' r='3'/%3E%3C/g%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -12,7 +12,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pirata+One&family=Rye&family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@500;600;700&display=swap">
 <link rel="stylesheet" href="styles.css">
 </head>
-<body data-theme="sinner">
+<body data-theme="landing">
 
 <div class="tex" aria-hidden="true"></div>
 <div class="fog" aria-hidden="true"></div>
@@ -21,12 +21,65 @@
 <!-- ============ LANDING ============ -->
 <main id="view-landing" class="view">
   <div class="landing">
-    <div class="sigils" aria-hidden="true"></div>
+    <div class="motes" aria-hidden="true">
+      <i style="--x:6%;--d:11s;--s:0s"></i><i style="--x:14%;--d:14s;--s:3s"></i><i style="--x:23%;--d:10s;--s:6s"></i>
+      <i style="--x:31%;--d:15s;--s:1s"></i><i style="--x:42%;--d:12s;--s:8s"></i><i style="--x:51%;--d:16s;--s:4s"></i>
+      <i style="--x:60%;--d:11s;--s:9s"></i><i style="--x:69%;--d:13s;--s:2s"></i><i style="--x:77%;--d:15s;--s:7s"></i>
+      <i style="--x:85%;--d:10s;--s:5s"></i><i style="--x:92%;--d:14s;--s:10s"></i><i style="--x:36%;--d:17s;--s:12s"></i>
+    </div>
     <p class="eyebrow">Chapter fifteen &middot; The Drowned Crossroads</p>
+
+    <div class="hero" aria-hidden="true">
+      <svg class="fan" viewBox="0 0 380 250" role="img" focusable="false">
+        <defs>
+          <linearGradient id="paper" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#F6EEDA"/><stop offset="1" stop-color="#D6C7A2"/>
+          </linearGradient>
+          <pattern id="lattice" width="12" height="12" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+            <rect width="12" height="12" fill="#4E1020"/><path d="M0 6H12M6 0V12" stroke="#8B2A3E" stroke-width="1"/>
+          </pattern>
+          <g id="c-as"><rect width="100" height="150" rx="9" fill="url(#paper)" stroke="#2A2118" stroke-width="1.5"/>
+            <g fill="#16120F" font-family="Georgia,'Times New Roman',serif" font-weight="700">
+              <text x="10" y="24" font-size="22">A</text><text x="10" y="42" font-size="18">&#9824;</text>
+              <g transform="rotate(180 50 75)"><text x="10" y="24" font-size="22">A</text><text x="10" y="42" font-size="18">&#9824;</text></g>
+              <text x="50" y="102" font-size="66" text-anchor="middle">&#9824;</text></g></g>
+          <g id="c-ac"><rect width="100" height="150" rx="9" fill="url(#paper)" stroke="#2A2118" stroke-width="1.5"/>
+            <g fill="#16120F" font-family="Georgia,'Times New Roman',serif" font-weight="700">
+              <text x="10" y="24" font-size="22">A</text><text x="10" y="42" font-size="18">&#9827;</text>
+              <g transform="rotate(180 50 75)"><text x="10" y="24" font-size="22">A</text><text x="10" y="42" font-size="18">&#9827;</text></g>
+              <text x="50" y="102" font-size="66" text-anchor="middle">&#9827;</text></g></g>
+          <g id="c-8s"><rect width="100" height="150" rx="9" fill="url(#paper)" stroke="#2A2118" stroke-width="1.5"/>
+            <g fill="#16120F" font-family="Georgia,'Times New Roman',serif" font-weight="700">
+              <text x="10" y="24" font-size="22">8</text><text x="10" y="42" font-size="18">&#9824;</text>
+              <g transform="rotate(180 50 75)"><text x="10" y="24" font-size="22">8</text><text x="10" y="42" font-size="18">&#9824;</text></g>
+              <text x="50" y="98" font-size="52" text-anchor="middle">&#9824;</text></g></g>
+          <g id="c-8c"><rect width="100" height="150" rx="9" fill="url(#paper)" stroke="#2A2118" stroke-width="1.5"/>
+            <g fill="#16120F" font-family="Georgia,'Times New Roman',serif" font-weight="700">
+              <text x="10" y="24" font-size="22">8</text><text x="10" y="42" font-size="18">&#9827;</text>
+              <g transform="rotate(180 50 75)"><text x="10" y="24" font-size="22">8</text><text x="10" y="42" font-size="18">&#9827;</text></g>
+              <text x="50" y="98" font-size="52" text-anchor="middle">&#9827;</text></g></g>
+          <g id="c-back"><rect width="100" height="150" rx="9" fill="url(#lattice)" stroke="#2A2118" stroke-width="1.5"/>
+            <rect x="7" y="7" width="86" height="136" rx="5" fill="none" stroke="#E3B55F" stroke-opacity=".65" stroke-width="1.2"/>
+            <text x="50" y="92" font-size="46" text-anchor="middle" fill="#E3B55F" fill-opacity=".85" font-family="Georgia,serif" font-weight="700">?</text></g>
+        </defs>
+        <g transform="translate(190 232)">
+          <g transform="rotate(-34) translate(-50 -170)"><use href="#c-as"/></g>
+          <g transform="rotate(-17) translate(-50 -170)"><use href="#c-ac"/></g>
+          <g transform="rotate(0) translate(-50 -170)"><use href="#c-8s"/></g>
+          <g transform="rotate(17) translate(-50 -170)"><use href="#c-8c"/></g>
+          <g transform="rotate(34) translate(-50 -170)"><use href="#c-back"/></g>
+        </g>
+      </svg>
+      <div class="hero-dice">
+        <div class="die wild roll d1"><i class="pip p3"></i></div>
+        <div class="die wild roll d2"><i class="pip p3"></i></div>
+      </div>
+    </div>
+
     <h1 class="logo">Liar's&nbsp;Dice</h1>
     <p class="logo-sub">at the <em>Dead Man's Hand</em></p>
-    <p class="tagline">Five dice apiece. Ones are wild. The house is a crocodile,
-      and the house does not lose.</p>
+    <div class="divider" aria-hidden="true"><span></span><i>&#9670;</i><span></span></div>
+    <p class="tagline">Five dice apiece. Ones are wild.<br>Everybody at this table is lying, and the house does not lose.</p>
 
     <div class="landing-actions">
       <button class="btn primary lg" id="btnCreate">Deal a new table</button>
@@ -73,7 +126,7 @@
           <select id="lobbyOpp">
             <option value="test">The House &middot; a plain test table</option>
             <option value="king">Vander Boone and Lyla Webb &middot; the test of luck</option>
-            <option value="sinner">Mister Crossroads &middot; the crocodile, for their souls</option>
+            <option value="sinner">Mister Crossroads &middot; for their souls</option>
           </select>
         </div>
         <div class="field">

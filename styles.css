@@ -31,7 +31,7 @@
   --shadow:0 18px 40px -18px rgba(0,0,0,.85);
 
   /* the three tables override everything below this line */
-  --g:111,216,166; --m:227,106,134; --a:233,182,79;
+  --g:111,216,166; --m:227,106,134; --a:233,182,79; --fogc:111,216,166;
   --on-g:#07170F; --on-m:#2A0912;
   --card-lo:#151820; --felt-lo:#111B17; --veil:rgba(8,9,12,.86);
   --die-1:#FFFDF6; --die-2:#EFEBDD; --die-3:#D6D0BD; --pip:#1A1C22;
@@ -62,8 +62,8 @@ body{
 .fog{
   position:fixed;inset:-10%;pointer-events:none;z-index:0;opacity:var(--fog);
   background:
-    radial-gradient(60% 40% at 20% 78%, rgba(var(--g),.20), transparent 70%),
-    radial-gradient(55% 38% at 82% 70%, rgba(var(--g),.14), transparent 70%),
+    radial-gradient(60% 40% at 20% 78%, rgba(var(--fogc),.20), transparent 70%),
+    radial-gradient(55% 38% at 82% 70%, rgba(var(--fogc),.14), transparent 70%),
     radial-gradient(70% 30% at 50% 96%, rgba(255,255,255,.10), transparent 70%);
   filter:blur(26px);animation:drift 46s ease-in-out infinite alternate;
 }
@@ -398,7 +398,7 @@ body[data-theme="king"]{
   --green:#D9A23E; --green-dim:#9C7226;
   --magenta:#C4492F; --magenta-dim:#8E3321;
   --amber:#F2C45E; --bone:#E8DBB8; --muted:#A08C6C; --dim:#6B5A43;
-  --g:217,162,62; --m:196,73,47; --a:242,196,94;
+  --g:217,162,62; --m:196,73,47; --a:242,196,94; --fogc:217,162,62;
   --on-g:#1E1204; --on-m:#FFF1E6; --veil:rgba(14,8,4,.9);
   --die-1:#F6EBCB; --die-2:#E6D3A4; --die-3:#C5AC74; --pip:#2A160B;
   --wild-1:#FFF3CF; --wild-2:#F4D98B; --wild-3:#DDA94A;
@@ -435,7 +435,7 @@ body[data-theme="sinner"]{
   --green:#A6E63C; --green-dim:#76A826;
   --magenta:#D1303A; --magenta-dim:#8E1F27;
   --amber:#E8C547; --bone:#E3DCC3; --muted:#86A08F; --dim:#4F6558;
-  --g:166,230,60; --m:209,48,58; --a:232,197,71;
+  --g:166,230,60; --m:209,48,58; --a:232,197,71; --fogc:166,230,60;
   --on-g:#0A1403; --on-m:#FFEDEC; --veil:rgba(3,8,5,.92);
   --die-1:#F1ECD8; --die-2:#DDD5B8; --die-3:#B9AF8D; --pip:#7A0F18;
   --wild-1:#F4F9D8; --wild-2:#C9E88A; --wild-3:#8DBE3A;
@@ -462,3 +462,65 @@ body[data-theme="sinner"] .logo-sub em{text-shadow:0 0 26px rgba(var(--m),.55)}
 body[data-theme="sinner"] .card{border-color:#1F3A2C;box-shadow:inset 0 0 0 1px rgba(0,0,0,.55), var(--shadow)}
 body[data-theme="sinner"] .seat.turn{border-color:var(--magenta);background:rgba(var(--m),.12);
   box-shadow:0 0 0 1px rgba(var(--m),.3)}
+
+/* ---------- landing : the Dead Man's Hand ---------- */
+body[data-theme="landing"]{
+  --display:"Pirata One","Rye",Georgia,serif;
+  --ground:#04080C; --ground-2:#0A1218;
+  --wood:#0E1A21; --wood-hi:#16262F; --card-lo:#080F14;
+  --line:#243945; --line-soft:#1A2B35;
+  --green:#E3B55F; --green-dim:#A9812F;
+  --magenta:#C93B4E; --magenta-dim:#8C2433;
+  --amber:#F0C46A; --bone:#EEE5CC; --muted:#8FA4AF; --dim:#55666F;
+  --g:227,181,95; --m:201,59,78; --a:240,196,106; --fogc:76,138,160;
+  --on-g:#1E1405; --on-m:#FFEDEE; --veil:rgba(3,7,10,.9);
+  --die-1:#F6EEDA; --die-2:#E6D9B6; --die-3:#C9B88A; --pip:#16120F;
+  --wild-1:#FFF3CF; --wild-2:#F4D98B; --wild-3:#DDA94A;
+  --grain:.12; --fog:.75;
+  --body-tex:
+    radial-gradient(ellipse 55% 38% at 50% -6%, rgba(190,215,235,.16), transparent 72%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='28'%3E%3Cpath d='M0 14Q20 4 40 14T80 14T120 14T160 14' fill='none' stroke='%23A8C8DC' stroke-opacity='.07' stroke-width='1.2'/%3E%3C/svg%3E") 0 0/160px 28px,
+    radial-gradient(ellipse 120% 70% at 50% 115%, rgba(0,0,0,.65), transparent 65%);
+}
+body[data-theme="landing"] .logo{
+  font-size:clamp(54px,15vw,104px);letter-spacing:.02em;margin-top:2px;
+  background:linear-gradient(180deg,#FFF3D2 0%,#E3B55F 58%,#9C7326 100%);
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+  filter:drop-shadow(0 3px 0 #000) drop-shadow(0 0 26px rgba(var(--g),.28));
+  animation:flicker 7s ease-in-out infinite;
+}
+@keyframes flicker{0%,100%{opacity:1}46%{opacity:1}48%{opacity:.86}50%{opacity:1}74%{opacity:.93}76%{opacity:1}}
+body[data-theme="landing"] .logo-sub{font-size:clamp(18px,4.6vw,27px)}
+body[data-theme="landing"] .logo-sub em{text-shadow:0 0 24px rgba(var(--m),.6)}
+body[data-theme="landing"] .joinbox{
+  padding:15px 16px 16px;border:1px solid var(--line);border-radius:13px;
+  background:linear-gradient(180deg,rgba(14,26,33,.78),rgba(8,15,20,.78));
+  box-shadow:inset 0 0 0 1px rgba(0,0,0,.5), 0 14px 30px -16px rgba(0,0,0,.9)}
+body[data-theme="landing"] #btnCreate{
+  padding:16px 34px;font-size:18px;letter-spacing:.02em;
+  box-shadow:0 0 0 1px rgba(0,0,0,.6), 0 10px 30px -10px rgba(var(--g),.55)}
+
+.hero{position:relative;width:min(430px,92vw);margin:10px auto 0}
+.fan{display:block;width:100%;height:auto;
+  filter:drop-shadow(0 14px 18px rgba(0,0,0,.7)) drop-shadow(0 0 30px rgba(var(--g),.12));
+  animation:bob 9s ease-in-out infinite}
+@keyframes bob{0%,100%{transform:translateY(0) rotate(-.4deg)}50%{transform:translateY(-6px) rotate(.4deg)}}
+.hero-dice{position:absolute;right:3%;bottom:-6px;display:flex;gap:7px}
+.hero-dice .die{width:44px;height:44px;border-radius:9px;padding:7px;
+  box-shadow:inset 0 -3px 0 rgba(0,0,0,.14), 0 0 0 2px rgba(var(--g),.9), 0 8px 18px -4px rgba(0,0,0,.85), 0 0 22px -4px rgba(var(--g),.7)}
+.hero-dice .pip{width:8px;height:8px}
+.hero-dice .d1{transform:rotate(-12deg);animation-delay:.5s}
+.hero-dice .d2{transform:rotate(9deg) translateY(4px);animation-delay:.75s}
+
+.divider{display:flex;align-items:center;gap:12px;max-width:320px;margin:20px auto 0;color:var(--green)}
+.divider span{flex:1;height:1px;background:linear-gradient(90deg,transparent,rgba(var(--g),.6))}
+.divider span:last-child{background:linear-gradient(270deg,transparent,rgba(var(--g),.6))}
+.divider i{font-style:normal;font-size:10px}
+.landing .tagline{margin-top:16px}
+
+.motes{position:fixed;inset:0;pointer-events:none;overflow:hidden;z-index:0}
+.motes i{position:absolute;bottom:-12px;left:var(--x);width:3px;height:3px;border-radius:50%;
+  background:rgba(var(--g),.9);box-shadow:0 0 9px 1px rgba(var(--g),.8);opacity:0;
+  animation:rise var(--d) linear var(--s) infinite}
+@keyframes rise{0%{transform:translate(0,0);opacity:0}8%{opacity:.85}60%{opacity:.5}100%{transform:translate(26px,-78vh);opacity:0}}
+body:not([data-theme="landing"]) .motes{display:none}

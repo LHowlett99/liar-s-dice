@@ -52,7 +52,7 @@ const sfx = (() => {
     sinner: { knock:92,  tick:[1000, 3700] }
   };
   let ctx = null, bus = null, wet = null, noiseBuf = null;
-  let mode = "all", theme = "sinner", ambTimer = null;
+  let mode = "all", theme = "landing", ambTimer = null;
   try {
     const saved = localStorage.getItem("dmh.sound");
     if (MODES.includes(saved)) mode = saved;
@@ -499,7 +499,7 @@ function show(view){
   ["landing","lobby","table"].forEach(v => {
     $("view-" + v).hidden = (v !== view);
   });
-  if (view === "landing") setTheme("sinner");
+  if (view === "landing") setTheme("landing");
 }
 
 function setTheme(t){
@@ -559,6 +559,7 @@ function updatePool(){
 /* ---- table ---- */
 function renderTable(){
   const me = mySeat && seatById(mySeat);
+  $("btnSeatSwap").hidden = !isDealer;
   $("hRound").textContent = room.round;
   $("hCode").textContent = roomCode;
   $("potN").textContent = potCount();
@@ -1010,7 +1011,7 @@ $("btnLeaveLobby").onclick = () => {
   history.replaceState(null, "", location.pathname);
   show("landing");
 };
-$("btnSeatSwap").onclick = () => { room.phase = "lobby"; save(); };
+$("btnSeatSwap").onclick = () => { if (!isDealer) return; room.phase = "lobby"; save(); };
 const paintSound = () => { $("btnSound").textContent = sfx.label(); };
 paintSound();
 $("btnSound").onclick = () => { sfx.cycle(); paintSound(); sfx.unlock(); sfx.bid(); };

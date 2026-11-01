@@ -174,5 +174,6 @@ or you made a Firestore instead of a Realtime Database. Check step 3.
 **"No table with that code".** Codes are per-database. If you re-created the
 Firebase project, old links die with it. Deal a new table.
 
-**Player sees somebody else's dice.** They claimed the wrong chair. Hit **Seat**
-in the top bar to send everyone back to the lobby and re-pick.
+**Player sees somebody else's dice.** They claimed the wrong chair. Only the dealer
+has the **Seat** button in the top bar: hit it to send everyone back to the lobby and
+re-pick.
