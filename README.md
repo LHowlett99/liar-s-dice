@@ -15,6 +15,7 @@ standing it back up if the Firebase project ever goes away.
 - Hard Read and Sly Reveal do real private reveals
 - The Sinner's pool grows by one die per character who sits down
 - A **Cast** button hides your own hand so you can share your screen
+- Three tables, each with its own look and sound: a plain test, Murkwater Bend and the crocodile
 
 ---
 
@@ -118,13 +119,37 @@ are shown on each button.
 The grants are set by character name in the `PROFICIENCIES` list at the top of
 `app.js`. A seat with a name that is not on that list gets no cheats.
 
-### The two games
+### The three tables
 
+Pick one in the lobby under **Who are they playing against?** before you deal. The
+whole app changes dress to match, for everyone at the table, the moment you pick.
+
+- **A plain test table.** One house seat, "The House", on five dice. No theme, no
+  texture. For trying things out.
 - **Murkwater Bend.** Vander Boone and Lyla Webb, five dice each. You play both,
   and they signal each other under the table, so let that show once or twice.
-- **Roll the Bones.** Mister Crossroads, opening on five dice plus one for every
-  character who sits down. He bids his most common face plus one, aggressively.
-  The moment he is eliminated he flips the table and forfeits.
+  Lantern-lit gambling den: weathered timber, baize felt, brass studs, aged ivory dice.
+- **Roll the Bones.** Mister Crossroads, the crocodile, opening on five dice plus one
+  for every character who sits down. He bids his most common face plus one,
+  aggressively. The moment he is eliminated he flips the table and forfeits.
+  Swamp scales, a jaw of teeth along the felt, bone dice with blood-red pips.
+
+You bid and challenge for the house from the **Dealer** panel on its turn.
+
+### Sound
+
+Everything is made from filtered noise in the browser, so there are no audio files and
+nothing pings: dice clattering on timber, knuckles on the rail, cloth, creaking boards
+and water. It is quiet on purpose, to sit under your music. The **Sound** button in
+the top bar cycles three ways, remembered per device:
+
+- **all**: the table sounds plus the odd noise from the room (creaks, drips and
+  rustles at Murkwater Bend; splashes, bubbles and a low growl in the swamp)
+- **dice**: just the table sounds
+- **off**
+
+The plain test table has no atmosphere noises. Phones only allow sound after a first tap,
+so a player's very first sound can be skipped.
 
 ---
 
