@@ -9,11 +9,13 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2314231B'/%3E%3Cg fill='%2345F09A'%3E%3Ccircle cx='10' cy='10' r='3'/%3E%3Ccircle cx='22' cy='22' r='3'/%3E%3Ccircle cx='16' cy='16' r='3'/%3E%3C/g%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rye&family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pirata+One&family=Rye&family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@500;600;700&display=swap">
 <link rel="stylesheet" href="styles.css">
 </head>
-<body>
+<body data-theme="sinner">
 
+<div class="tex" aria-hidden="true"></div>
+<div class="fog" aria-hidden="true"></div>
 <div class="grain" aria-hidden="true"></div>
 
 <!-- ============ LANDING ============ -->
@@ -69,8 +71,9 @@
         <div class="field">
           <label for="lobbyOpp">Who are they playing against?</label>
           <select id="lobbyOpp">
+            <option value="test">The House &middot; a plain test table</option>
             <option value="king">Vander Boone and Lyla Webb &middot; the test of luck</option>
-            <option value="sinner">Mister Crossroads &middot; for their souls</option>
+            <option value="sinner">Mister Crossroads &middot; the crocodile, for their souls</option>
           </select>
         </div>
         <div class="field">
@@ -94,7 +97,7 @@
         <p class="turnline" id="hTurn">&nbsp;</p>
       </div>
       <div class="bar-actions">
-        <button class="btn ghost sm" id="btnSound" title="Turn the table sounds on or off">Sound on</button>
+        <button class="btn ghost sm" id="btnSound" title="Cycle sound: everything, dice only, or silent">Sound: all</button>
         <button class="btn ghost sm" id="btnCast" title="Hide your own hand for screen sharing">Cast</button>
         <button class="btn ghost sm" id="btnSeatSwap">Seat</button>
       </div>

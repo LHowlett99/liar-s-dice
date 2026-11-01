@@ -39,62 +39,235 @@ let draft = { count:1, face:2 }, armed = null, selDie = -1;
 let lastRound = -1, seenReveal = null, lastSnap = null;
 
 /* ---------------- sound ---------------- */
-/* Synthesised with Web Audio so there are no files to host. Quiet on purpose:
-   the dealer will have music running underneath. */
+/* Everything is made from filtered noise, so it sounds like a room rather than
+   a machine: dice on timber, knuckles on the rail, cloth, creaking boards, water.
+   There are no tones to ping. Quiet on purpose; the dealer will have music on. */
 
 const sfx = (() => {
-  let ctx = null, master = null, muted = false;
-  try { muted = localStorage.getItem("dmh.mute") === "1"; } catch {}
+  const MODES = ["all", "dice", "off"];
+  const LABEL = { all:"Sound: all", dice:"Sound: dice", off:"Sound: off" };
+  const FEEL = {
+    plain:  { knock:150, tick:[1500, 4600] },
+    king:   { knock:112, tick:[900, 3300] },
+    sinner: { knock:92,  tick:[1000, 3700] }
+  };
+  let ctx = null, bus = null, wet = null, noiseBuf = null;
+  let mode = "all", theme = "sinner", ambTimer = null;
+  try {
+    const saved = localStorage.getItem("dmh.sound");
+    if (MODES.includes(saved)) mode = saved;
+    else if (localStorage.getItem("dmh.mute") === "1") mode = "off";
+  } catch {}
+
+  const rand = (a, b) => a + Math.random() * (b - a);
+  const feel = () => FEEL[theme] || FEEL.plain;
+  const T = s => ctx.currentTime + s;
+
+  function build(){
+    const drive = ctx.createWaveShaper();
+    const curve = new Float32Array(1024);
+    for (let i = 0; i < 1024; i++){ const x = i / 512 - 1; curve[i] = Math.tanh(x * 2.4) / Math.tanh(2.4); }
+    drive.curve = curve;
+    const tone = ctx.createBiquadFilter(); tone.type = "lowpass"; tone.frequency.value = 5200; tone.Q.value = 0.4;
+    const level = ctx.createGain(); level.gain.value = 0.5;
+    bus = ctx.createGain();
+    bus.connect(drive); drive.connect(tone); tone.connect(level); level.connect(ctx.destination);
+
+    const len = Math.floor(ctx.sampleRate * 0.9), ir = ctx.createBuffer(2, len, ctx.sampleRate);
+    for (let c = 0; c < 2; c++){
+      const d = ir.getChannelData(c);
+      for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3.4);
+    }
+    const conv = ctx.createConvolver(); conv.buffer = ir;
+    wet = ctx.createGain(); wet.gain.value = 0.32;
+    wet.connect(conv); conv.connect(drive);
+
+    const n = Math.floor(ctx.sampleRate * 4);
+    noiseBuf = ctx.createBuffer(1, n, ctx.sampleRate);
+    const d = noiseBuf.getChannelData(0);
+    for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+  }
 
   function ready(){
-    if (muted) return false;
+    if (mode === "off") return false;
     if (!ctx){
       const AC = window.AudioContext || window.webkitAudioContext;
       if (!AC) return false;
       ctx = new AC();
-      master = ctx.createGain(); master.gain.value = 0.22; master.connect(ctx.destination);
+      build();
     }
-    if (ctx.state === "suspended") ctx.resume();
+    if (ctx.state === "suspended"){ const p = ctx.resume(); if (p && p.catch) p.catch(() => {}); }
+    if (!ambTimer) scheduleAmb();
     return true;
   }
-  function tone(freq, start, dur, type = "sine", gain = 0.5, slideTo = null){
-    const t = ctx.currentTime + start;
-    const o = ctx.createOscillator(), g = ctx.createGain();
-    o.type = type; o.frequency.setValueAtTime(freq, t);
-    if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t + dur);
-    g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(gain, t + 0.01);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    o.connect(g); g.connect(master); o.start(t); o.stop(t + dur + 0.05);
-  }
-  function noise(start, dur, freq, gain = 0.4){
-    const t = ctx.currentTime + start;
-    const len = Math.max(1, Math.floor(ctx.sampleRate * dur));
-    const buf = ctx.createBuffer(1, len, ctx.sampleRate), d = buf.getChannelData(0);
-    for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
-    const s = ctx.createBufferSource(); s.buffer = buf;
-    const f = ctx.createBiquadFilter(); f.type = "bandpass"; f.frequency.value = freq; f.Q.value = 1.4;
-    const g = ctx.createGain();
-    g.gain.setValueAtTime(gain, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    s.connect(f); f.connect(g); g.connect(master); s.start(t);
-  }
-  const play = fn => () => { if (ready()) fn(); };
 
-  return {
-    isMuted: () => muted,
-    setMuted(m){
-      muted = m;
-      try { localStorage.setItem("dmh.mute", m ? "1" : "0"); } catch {}
+  /* ---- building blocks ---- */
+  function out(node, w = 0.3){
+    node.connect(bus);
+    if (w){ const s = ctx.createGain(); s.gain.value = w; node.connect(s); s.connect(wet); }
+  }
+  function nsrc(t, dur){
+    const s = ctx.createBufferSource(); s.buffer = noiseBuf;
+    s.start(t, Math.random() * (noiseBuf.duration - dur - 0.1)); s.stop(t + dur + 0.05);
+    return s;
+  }
+  function burst(g, t, attack, peak, dur){
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(peak, t + attack);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  }
+  function click(s, f, q, dur, peak, w = 0.35){
+    const t = T(s), src = nsrc(t, dur), bp = ctx.createBiquadFilter(), g = ctx.createGain();
+    bp.type = "bandpass"; bp.frequency.value = f; bp.Q.value = q;
+    burst(g, t, 0.002, peak, dur);
+    src.connect(bp); bp.connect(g); out(g, w);
+  }
+  function thud(s, f, dur, peak, w = 0.5){
+    const t = T(s), o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = "sine";
+    o.frequency.setValueAtTime(f * 1.7, t);
+    o.frequency.exponentialRampToValueAtTime(f, t + 0.04);
+    o.frequency.exponentialRampToValueAtTime(f * 0.55, t + dur);
+    burst(g, t, 0.003, peak, dur);
+    o.connect(g); out(g, w); o.start(t); o.stop(t + dur + 0.05);
+    const src = nsrc(t, dur * 0.5), lp = ctx.createBiquadFilter(), g2 = ctx.createGain();
+    lp.type = "lowpass"; lp.frequency.value = f * 6; lp.Q.value = 0.7;
+    burst(g2, t, 0.002, peak * 0.9, dur * 0.45);
+    src.connect(lp); lp.connect(g2); out(g2, w);
+  }
+  function rustle(s, dur, peak, lo, hi, w = 0.3){
+    const t = T(s), src = nsrc(t, dur), hp = ctx.createBiquadFilter(), lp = ctx.createBiquadFilter(), g = ctx.createGain();
+    hp.type = "highpass"; hp.frequency.value = lo; lp.type = "lowpass"; lp.frequency.value = hi;
+    const n = Math.max(8, Math.floor(dur * 55)), c = new Float32Array(n);
+    for (let i = 0; i < n; i++) c[i] = peak * Math.sin(Math.PI * i / (n - 1)) * Math.pow(Math.random(), 1.6);
+    g.gain.setValueCurveAtTime(c, t, dur);
+    src.connect(hp); hp.connect(lp); lp.connect(g); out(g, w);
+  }
+  function swell(s, dur, f0, f1, peak, trem = 0, rate = 9, w = 0.6){
+    const t = T(s), src = nsrc(t, dur), lp = ctx.createBiquadFilter(), g = ctx.createGain();
+    lp.type = "lowpass"; lp.Q.value = 1.2;
+    lp.frequency.setValueAtTime(f0, t); lp.frequency.exponentialRampToValueAtTime(f1, t + dur);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(peak, t + dur * 0.22);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    src.connect(lp); lp.connect(g);
+    if (trem){
+      const lfo = ctx.createOscillator(), depth = ctx.createGain(), tg = ctx.createGain();
+      tg.gain.value = 1 - trem / 2;
+      lfo.frequency.value = rate; depth.gain.value = trem / 2;
+      lfo.connect(depth); depth.connect(tg.gain);
+      g.connect(tg); out(tg, w);
+      lfo.start(t); lfo.stop(t + dur + 0.05);
+    } else out(g, w);
+  }
+  function creak(s, dur, f0, f1, peak, w = 0.5){
+    const t = T(s), src = nsrc(t, dur), bp = ctx.createBiquadFilter(), g = ctx.createGain();
+    bp.type = "bandpass"; bp.Q.value = 7;
+    bp.frequency.setValueAtTime(f0, t);
+    for (let i = 1; i <= 6; i++) bp.frequency.linearRampToValueAtTime(f0 + (f1 - f0) * (i / 6) * rand(0.7, 1.3), t + dur * i / 6);
+    const n = 24, c = new Float32Array(n);
+    for (let i = 0; i < n; i++) c[i] = peak * Math.sin(Math.PI * i / (n - 1)) * rand(0.4, 1);
+    g.gain.setValueCurveAtTime(c, t, dur);
+    src.connect(bp); bp.connect(g); out(g, w);
+  }
+  function drip(s, peak){
+    const t = T(s), src = nsrc(t, 0.12), bp = ctx.createBiquadFilter(), g = ctx.createGain();
+    bp.type = "bandpass"; bp.Q.value = 5;
+    bp.frequency.setValueAtTime(rand(450, 700), t);
+    bp.frequency.exponentialRampToValueAtTime(rand(1300, 2000), t + 0.07);
+    burst(g, t, 0.003, peak, 0.1);
+    src.connect(bp); bp.connect(g); out(g, 0.9);
+  }
+  function splash(s, peak){
+    click(s, rand(700, 1200), 0.7, rand(0.25, 0.4), peak, 0.7);
+    swell(s, 0.5, 700, 150, peak * 0.6, 0, 9, 0.5);
+  }
+
+  /* ---- the sounds ---- */
+  const V = {
+    deal(){
+      const k = feel(), n = 24;
+      const ts = Array.from({ length:n }, () => Math.pow(Math.random(), 1.8) * 1.1).sort((a, b) => a - b);
+      ts.forEach((t, i) => {
+        const fade = 1 - t / 1.4;
+        click(0.02 + t, rand(k.tick[0], k.tick[1]), rand(2, 5), rand(0.025, 0.06), 1.1 * fade + 0.15);
+        if (i % 3 === 0) thud(0.02 + t, rand(k.knock * 0.9, k.knock * 1.6), 0.1, 0.5 * fade + 0.08, 0.3);
+      });
+      click(1.3, 1300, 3, 0.04, 0.4); click(1.42, 1000, 3, 0.03, 0.25);
     },
-    unlock(){ ready(); },
-    deal:   play(() => { for (let i = 0; i < 9; i++) noise(i * 0.06 + Math.random() * 0.03, 0.05, 1800 + Math.random() * 2200, 0.35); }),
-    bid:    play(() => { tone(520, 0, 0.09, "triangle", 0.4); tone(390, 0.07, 0.12, "triangle", 0.3); }),
-    turn:   play(() => { tone(660, 0, 0.22, "sine", 0.35); tone(880, 0.13, 0.32, "sine", 0.3); }),
-    reveal: play(() => { tone(90, 0, 0.5, "sine", 0.7, 45); noise(0, 0.35, 900, 0.3); tone(220, 0.05, 0.4, "sawtooth", 0.12); }),
-    lose:   play(() => { tone(300, 0, 0.5, "triangle", 0.45, 110); }),
-    trait:  play(() => { [784, 988, 1175, 1568].forEach((f, i) => tone(f, i * 0.07, 0.35, "sine", 0.22)); }),
-    over:   play(() => { [392, 494, 587, 784].forEach((f, i) => tone(f, i * 0.16, 0.6, "triangle", 0.35)); })
+    bid(){
+      const k = feel();
+      thud(0, k.knock, 0.18, 0.8, 0.4); click(0, 1500, 2.5, 0.05, 0.7); rustle(0.03, 0.2, 0.25, 2500, 7000);
+    },
+    turn(){
+      const k = feel();
+      thud(0, k.knock * 1.3, 0.1, 0.4, 0.3); thud(0.2, k.knock * 1.15, 0.1, 0.34, 0.3); rustle(0.05, 0.25, 0.12, 3000, 8000);
+    },
+    reveal(){
+      const k = feel();
+      thud(0, k.knock * 0.55, 0.6, 1.0, 0.7);
+      swell(0, 1.0, 1000, 140, 0.9, 0, 9, 0.7);
+      for (let i = 0; i < 9; i++) click(0.1 + Math.random() * 0.6, rand(k.tick[0], k.tick[1]), rand(2, 5), rand(0.03, 0.07), 0.6, 0.4);
+    },
+    lose(){
+      const k = feel(), gator = theme === "sinner";
+      swell(0, 1.2, 320, 70, 1.0, gator ? 0.7 : 0.25, gator ? 13 : 6, 0.7);
+      thud(0.05, k.knock * 0.5, 0.5, 0.8, 0.6);
+    },
+    trait(){
+      rustle(0, 0.22, 0.9, 1800, 8000, 0.2); rustle(0.17, 0.22, 0.8, 2500, 9000, 0.2); click(0.42, 2600, 4, 0.03, 0.4);
+    },
+    over(){
+      const k = feel();
+      thud(0, k.knock * 0.45, 1.3, 1.0, 0.9);
+      swell(0.05, 2.6, 600, 55, 0.9, theme === "sinner" ? 0.6 : 0.2, 8, 0.9);
+      creak(0.5, 1.2, 170, 95, 0.5);
+    }
   };
+
+  /* ---- atmosphere: the odd noise from the room, never on a beat ---- */
+  const AMB = {
+    king: [
+      () => creak(0, rand(0.9, 1.6), rand(150, 260), rand(90, 170), 0.35),
+      () => drip(0, 0.5),
+      () => rustle(0, 0.5, 0.25, 2500, 7000),
+      () => swell(0, 2.2, 260, 70, 0.4, 0, 9, 0.9)
+    ],
+    sinner: [
+      () => splash(0, 0.6),
+      () => { drip(0, 0.45); drip(0.17, 0.35); drip(0.3, 0.3); },
+      () => swell(0, 2.0, 200, 60, 0.5, 0.8, 11, 0.9),
+      () => rustle(0, 0.9, 0.3, 700, 3500, 0.5)
+    ]
+  };
+  function ambient(){
+    const pool = AMB[theme];
+    if (pool) pool[Math.floor(Math.random() * pool.length)]();
+  }
+  function scheduleAmb(){
+    clearTimeout(ambTimer); ambTimer = null;
+    if (mode !== "all" || !AMB[theme] || !ctx) return;
+    ambTimer = setTimeout(() => {
+      const onTable = !document.getElementById("view-table").hidden;
+      if (onTable && !document.hidden && ctx.state === "running"){ try { ambient(); } catch (e) { console.warn("sound", e); } }
+      scheduleAmb();
+    }, rand(10000, 24000));
+  }
+
+  const api = {
+    label: () => LABEL[mode],
+    cycle(){
+      mode = MODES[(MODES.indexOf(mode) + 1) % MODES.length];
+      try { localStorage.setItem("dmh.sound", mode); } catch {}
+      if (mode === "off"){ clearTimeout(ambTimer); ambTimer = null; } else if (ctx) scheduleAmb();
+    },
+    setTheme(t){ theme = t; if (ctx) scheduleAmb(); },
+    unlock(){ ready(); }
+  };
+  Object.keys(V).forEach(k => {
+    api[k] = () => { if (!ready()) return; try { V[k](); } catch (e) { console.warn("sound", e); } };
+  });
+  return api;
 })();
 
 function sfxDiff(prev, cur){
@@ -190,17 +363,17 @@ async function save(){
 
 /* ---------------- game actions ---------------- */
 
+function npcSeatsFor(opponent, pcCount){
+  const npc = (name, count) => ({ id:uid(), name, kind:"npc", dice:[], count, out:false, traits:traitsFor(name), claimed:true });
+  if (opponent === "king") return [npc("Vander Boone", 5), npc("Lyla Webb", 5)];
+  if (opponent === "sinner") return [npc("Mister Crossroads", 5 + pcCount)];
+  return [npc("The House", 5)];
+}
+
 function makeRoom(opponent, names){
   const seats = names.map(n => ({
     id:uid(), name:n, kind:"pc", dice:[], count:5, out:false, traits:traitsFor(n), claimed:false
-  }));
-  if (opponent === "king"){
-    seats.push({ id:uid(), name:"Vander Boone", kind:"npc", dice:[], count:5, out:false, traits:traitsFor("Vander Boone"), claimed:true });
-    seats.push({ id:uid(), name:"Lyla Webb",    kind:"npc", dice:[], count:5, out:false, traits:traitsFor("Lyla Webb"), claimed:true });
-  } else {
-    seats.push({ id:uid(), name:"Mister Crossroads", kind:"npc",
-                 dice:[], count:5 + names.length, out:false, traits:traitsFor("Mister Crossroads"), claimed:true });
-  }
+  })).concat(npcSeatsFor(opponent, names.length));
   return {
     v:2, opponent, phase:"lobby", round:0,
     seats, turn:seats[0].id, opener:seats[0].id,
@@ -322,10 +495,18 @@ function show(view){
   ["landing","lobby","table"].forEach(v => {
     $("view-" + v).hidden = (v !== view);
   });
+  if (view === "landing") setTheme("sinner");
+}
+
+function setTheme(t){
+  if (document.body.dataset.theme === t) return;
+  document.body.dataset.theme = t;
+  sfx.setTheme(t);
 }
 
 function render(){
   if (!room){ show("landing"); return; }
+  setTheme(room.opponent);
   if (room.phase === "lobby"){ show("lobby"); renderLobby(); return; }
   show("table"); renderTable();
 }
@@ -363,9 +544,12 @@ function renderLobby(){
 }
 function updatePool(){
   const n = $("lobbyNames").value.split("\n").map(s => s.trim()).filter(Boolean).length;
-  $("lobbyPool").textContent = $("lobbyOpp").value === "sinner"
+  const opp = $("lobbyOpp").value;
+  $("lobbyPool").textContent = opp === "sinner"
     ? `Mister Crossroads opens on ${5 + n} dice: five, plus one for every character who sits down.`
-    : "Vander and Lyla take five dice each, and they signal to each other under the table.";
+    : opp === "test"
+      ? "A plain table with one house seat on five dice. For trying things out."
+      : "Vander and Lyla take five dice each, and they signal to each other under the table.";
 }
 
 /* ---- table ---- */
@@ -620,7 +804,9 @@ function renderDealer(){
     ? `<div class="note mag"><b>Overweening Pride</b>Any creature can spend a Bonus Action to insult his record
         as a pirate captain. DC 15 Wisdom or he takes 10 Psychic and has Disadvantage against everyone but
         the speaker. The moment he is eliminated he roars, flips the table and forfeits.</div>`
-    : `<div class="note green"><b>You know both their hands</b>Vander and Lyla signal each other under the table.
+    : room.opponent === "test"
+      ? `<div class="note green"><b>Test table</b>One house seat. Bid and challenge for it from this panel on its turn.</div>`
+      : `<div class="note green"><b>You know both their hands</b>Vander and Lyla signal each other under the table.
         Play them as a pair quietly working together, and let it show once or twice.</div>`;
 
   const turnSeat = seatById(room.turn);
@@ -775,7 +961,7 @@ function attach(code){
     if (!v){ room = null; show("landing"); toast("That table is not there any more."); return; }
     room = v;
     if (mySeat && !seatById(mySeat)) mySeat = null;
-    sfxDiff(lastSnap, v);
+    try { sfxDiff(lastSnap, v); } catch (e) { console.warn("sound", e); }
     lastSnap = JSON.parse(JSON.stringify(v));
     render();
   }, err => toast("Lost the table. Reload to reconnect."));
@@ -821,9 +1007,9 @@ $("btnLeaveLobby").onclick = () => {
   show("landing");
 };
 $("btnSeatSwap").onclick = () => { room.phase = "lobby"; save(); };
-const paintSound = () => { $("btnSound").textContent = sfx.isMuted() ? "Sound off" : "Sound on"; };
+const paintSound = () => { $("btnSound").textContent = sfx.label(); };
 paintSound();
-$("btnSound").onclick = () => { sfx.setMuted(!sfx.isMuted()); paintSound(); sfx.unlock(); sfx.bid(); };
+$("btnSound").onclick = () => { sfx.cycle(); paintSound(); sfx.unlock(); sfx.bid(); };
 document.addEventListener("pointerdown", () => sfx.unlock(), { once: true });
 $("btnCast").onclick = () => {
   castMode = !castMode;
@@ -831,7 +1017,12 @@ $("btnCast").onclick = () => {
   toast(castMode ? "Your hand is hidden. Safe to share the screen." : "Your hand is back.");
   render();
 };
-$("lobbyOpp").onchange = updatePool;
+$("lobbyOpp").onchange = () => {
+  room.opponent = $("lobbyOpp").value;
+  const pcs = room.seats.filter(s => s.kind === "pc");
+  room.seats = pcs.concat(npcSeatsFor(room.opponent, pcs.length));
+  updatePool(); save();
+};
 $("lobbyNames").oninput = updatePool;
 $("btnDeal").onclick = () => {
   const names = $("lobbyNames").value.split("\n").map(s => s.trim()).filter(Boolean);
