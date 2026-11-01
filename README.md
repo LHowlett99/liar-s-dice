@@ -104,19 +104,19 @@ clipboard, along with the cheats they have not spent yet, ready to paste into a 
 
 ### Cheats
 
-Each of the six traits is once per game, not three uses from a shared pool, and a
-player only sees the ones their character is actually proficient in. The rest are
-greyed out with the proficiency they would need. The defaults:
+Each trait is once per game per proficiency (twice with expertise), not three uses
+from a shared pool. A player only sees the cheats their character has. Uses left
+are shown on each button.
 
 | | Hard Read | Deft Hands | Sly Reveal | Poker Face | Daring Dicer | Fated Luck |
 |---|---|---|---|---|---|---|
-| Sassafras | yes | yes | yes | yes | yes | yes |
-| Bird | yes | | | yes | | yes |
-| Fizzwick | | yes | | yes | | yes |
-| Sister Maple | yes | | | | | yes |
+| Sassafras | 1 | 2 | 1 | 2 | 1 | 1 |
+| Ryn | 1 | | | 1 | | |
+| Fizzwick | | 1 | | 1 | | |
+| Sister Maple | 1 | | | | | |
 
-Fated Luck needs no proficiency, so anyone gets it. Anyone not on that list starts
-with Fated Luck alone. Change any of it in the lobby before you deal.
+The grants are set by character name in the `PROFICIENCIES` list at the top of
+`app.js`. A seat with a name that is not on that list gets no cheats.
 
 ### The two games
 
