@@ -36,7 +36,85 @@ const LS = { room:"dmh.room", seat:"dmh.seat", dealer:"dmh.dealer" };
 let db = null, roomRef = null, room = null, roomCode = null;
 let mySeat = null, isDealer = false, castMode = false;
 let draft = { count:1, face:2 }, armed = null, selDie = -1;
-let lastRound = -1, seenReveal = null;
+let lastRound = -1, seenReveal = null, lastSnap = null;
+
+/* ---------------- sound ---------------- */
+/* Synthesised with Web Audio so there are no files to host. Quiet on purpose:
+   the dealer will have music running underneath. */
+
+const sfx = (() => {
+  let ctx = null, master = null, muted = false;
+  try { muted = localStorage.getItem("dmh.mute") === "1"; } catch {}
+
+  function ready(){
+    if (muted) return false;
+    if (!ctx){
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return false;
+      ctx = new AC();
+      master = ctx.createGain(); master.gain.value = 0.22; master.connect(ctx.destination);
+    }
+    if (ctx.state === "suspended") ctx.resume();
+    return true;
+  }
+  function tone(freq, start, dur, type = "sine", gain = 0.5, slideTo = null){
+    const t = ctx.currentTime + start;
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = type; o.frequency.setValueAtTime(freq, t);
+    if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t + dur);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(gain, t + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(master); o.start(t); o.stop(t + dur + 0.05);
+  }
+  function noise(start, dur, freq, gain = 0.4){
+    const t = ctx.currentTime + start;
+    const len = Math.max(1, Math.floor(ctx.sampleRate * dur));
+    const buf = ctx.createBuffer(1, len, ctx.sampleRate), d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    const s = ctx.createBufferSource(); s.buffer = buf;
+    const f = ctx.createBiquadFilter(); f.type = "bandpass"; f.frequency.value = freq; f.Q.value = 1.4;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(gain, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    s.connect(f); f.connect(g); g.connect(master); s.start(t);
+  }
+  const play = fn => () => { if (ready()) fn(); };
+
+  return {
+    isMuted: () => muted,
+    setMuted(m){
+      muted = m;
+      try { localStorage.setItem("dmh.mute", m ? "1" : "0"); } catch {}
+    },
+    unlock(){ ready(); },
+    deal:   play(() => { for (let i = 0; i < 9; i++) noise(i * 0.06 + Math.random() * 0.03, 0.05, 1800 + Math.random() * 2200, 0.35); }),
+    bid:    play(() => { tone(520, 0, 0.09, "triangle", 0.4); tone(390, 0.07, 0.12, "triangle", 0.3); }),
+    turn:   play(() => { tone(660, 0, 0.22, "sine", 0.35); tone(880, 0.13, 0.32, "sine", 0.3); }),
+    reveal: play(() => { tone(90, 0, 0.5, "sine", 0.7, 45); noise(0, 0.35, 900, 0.3); tone(220, 0.05, 0.4, "sawtooth", 0.12); }),
+    lose:   play(() => { tone(300, 0, 0.5, "triangle", 0.45, 110); }),
+    trait:  play(() => { [784, 988, 1175, 1568].forEach((f, i) => tone(f, i * 0.07, 0.35, "sine", 0.22)); }),
+    over:   play(() => { [392, 494, 587, 784].forEach((f, i) => tone(f, i * 0.16, 0.6, "triangle", 0.35)); })
+  };
+})();
+
+function sfxDiff(prev, cur){
+  if (!prev || !cur) return;
+  const traitsLeft = r => (r.seats || []).reduce((a, s) => a + Object.keys(s.traits || {}).reduce((b, k) => b + (s.traits[k].cap - s.traits[k].used), 0), 0);
+  if (cur.phase === "over" && prev.phase !== "over") return sfx.over();
+  if (cur.reveal && (!prev.reveal || prev.reveal.id !== cur.reveal.id)) return sfx.reveal();
+  if (cur.phase === "bidding" && (cur.round || 0) > (prev.round || 0)){
+    const was = (prev.seats || []).reduce((a, s) => a + s.count, 0), now = (cur.seats || []).reduce((a, s) => a + s.count, 0);
+    if (now < was) sfx.lose();
+    return sfx.deal();
+  }
+  if (cur.phase === "bidding" && prev.phase === "bidding" && cur.pokerFace && !prev.pokerFace) return sfx.trait();
+  if (traitsLeft(cur) < traitsLeft(prev)) return sfx.trait();
+  const pb = prev.bid, cb = cur.bid;
+  if (cb && (!pb || pb.count !== cb.count || pb.face !== cb.face || pb.by !== cb.by)){
+    return (cur.turn === mySeat) ? sfx.turn() : sfx.bid();
+  }
+  if (cur.phase === "bidding" && cur.turn !== prev.turn && cur.turn === mySeat) sfx.turn();
+}
 
 /* ---------------- tiny helpers ---------------- */
 
@@ -685,7 +763,7 @@ function newCode(){
   return Array.from({length:4}, () => A[Math.floor(Math.random()*A.length)]).join("");
 }
 function attach(code){
-  roomCode = code;
+  roomCode = code; lastSnap = null;
   roomRef = ref(db, "rooms/" + code);
   try { localStorage.setItem(LS.room, code); } catch {}
   const url = new URL(location.href);
@@ -697,6 +775,8 @@ function attach(code){
     if (!v){ room = null; show("landing"); toast("That table is not there any more."); return; }
     room = v;
     if (mySeat && !seatById(mySeat)) mySeat = null;
+    sfxDiff(lastSnap, v);
+    lastSnap = JSON.parse(JSON.stringify(v));
     render();
   }, err => toast("Lost the table. Reload to reconnect."));
 }
@@ -741,6 +821,10 @@ $("btnLeaveLobby").onclick = () => {
   show("landing");
 };
 $("btnSeatSwap").onclick = () => { room.phase = "lobby"; save(); };
+const paintSound = () => { $("btnSound").textContent = sfx.isMuted() ? "Sound off" : "Sound on"; };
+paintSound();
+$("btnSound").onclick = () => { sfx.setMuted(!sfx.isMuted()); paintSound(); sfx.unlock(); sfx.bid(); };
+document.addEventListener("pointerdown", () => sfx.unlock(), { once: true });
 $("btnCast").onclick = () => {
   castMode = !castMode;
   $("btnCast").textContent = castMode ? "Casting" : "Cast";
