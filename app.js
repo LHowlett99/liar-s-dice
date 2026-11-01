@@ -102,9 +102,11 @@ const sfx = (() => {
   }
 
   /* ---- building blocks ---- */
+  let lane = 1;
   function out(node, w = 0.3){
-    node.connect(bus);
-    if (w){ const s = ctx.createGain(); s.gain.value = w; node.connect(s); s.connect(wet); }
+    const l = ctx.createGain(); l.gain.value = lane;
+    node.connect(l); l.connect(bus);
+    if (w){ const s = ctx.createGain(); s.gain.value = w; l.connect(s); s.connect(wet); }
   }
   function nsrc(t, dur){
     const s = ctx.createBufferSource(); s.buffer = noiseBuf;
@@ -242,7 +244,9 @@ const sfx = (() => {
   };
   function ambient(){
     const pool = AMB[theme];
-    if (pool) pool[Math.floor(Math.random() * pool.length)]();
+    if (!pool) return;
+    lane = 0.5;
+    try { pool[Math.floor(Math.random() * pool.length)](); } finally { lane = 1; }
   }
   function scheduleAmb(){
     clearTimeout(ambTimer); ambTimer = null;
