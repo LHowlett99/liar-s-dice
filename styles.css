@@ -464,7 +464,8 @@ body[data-theme="sinner"] .seat.turn{border-color:var(--magenta);background:rgba
   box-shadow:0 0 0 1px rgba(var(--m),.3)}
 
 /* ---------- landing : the Dead Man's Hand ---------- */
-body[data-theme="landing"]{
+body[data-theme="landing"],
+body[data-theme="poker"]{
   --display:"Pirata One","Rye",Georgia,serif;
   --ground:#04080C; --ground-2:#0A1218;
   --wood:#0E1A21; --wood-hi:#16262F; --card-lo:#080F14;
@@ -483,7 +484,7 @@ body[data-theme="landing"]{
     radial-gradient(ellipse 120% 70% at 50% 115%, rgba(0,0,0,.65), transparent 65%);
 }
 body[data-theme="landing"] .logo{
-  font-size:clamp(54px,15vw,104px);letter-spacing:.02em;margin-top:2px;
+  font-size:clamp(44px,11.5vw,84px);letter-spacing:.02em;margin-top:2px;line-height:1;
   background:linear-gradient(180deg,#FFF3D2 0%,#E3B55F 58%,#9C7326 100%);
   -webkit-background-clip:text;background-clip:text;color:transparent;
   filter:drop-shadow(0 3px 0 #000) drop-shadow(0 0 26px rgba(var(--g),.28));
@@ -496,11 +497,8 @@ body[data-theme="landing"] .joinbox{
   padding:15px 16px 16px;border:1px solid var(--line);border-radius:13px;
   background:linear-gradient(180deg,rgba(14,26,33,.78),rgba(8,15,20,.78));
   box-shadow:inset 0 0 0 1px rgba(0,0,0,.5), 0 14px 30px -16px rgba(0,0,0,.9)}
-body[data-theme="landing"] #btnCreate{
-  padding:16px 34px;font-size:18px;letter-spacing:.02em;
-  box-shadow:0 0 0 1px rgba(0,0,0,.6), 0 10px 30px -10px rgba(var(--g),.55)}
 
-.hero{position:relative;width:min(430px,92vw);margin:10px auto 22px}
+.hero{position:relative;width:min(340px,84vw);margin:6px auto 18px}
 .fan{display:block;width:100%;height:auto;
   filter:drop-shadow(0 14px 18px rgba(0,0,0,.7)) drop-shadow(0 0 30px rgba(var(--g),.12));
   animation:bob 9s ease-in-out infinite}
@@ -524,3 +522,105 @@ body[data-theme="landing"] #btnCreate{
   animation:rise var(--d) linear var(--s) infinite}
 @keyframes rise{0%{transform:translate(0,0);opacity:0}8%{opacity:.85}60%{opacity:.5}100%{transform:translate(26px,-78vh);opacity:0}}
 body:not([data-theme="landing"]) .motes{display:none}
+
+/* ===========================================================
+   THE DEAD MAN'S HAND (poker.html)
+   A captain's cabin at night: the landing palette, over dark
+   planking, with a black baize table trimmed in brass.
+   =========================================================== */
+body[data-theme="poker"]{
+  --felt:#0A1812; --felt-hi:#12291F; --felt-edge:#6B4A1E; --felt-lo:#060F0B;
+  --felt-rim:6px solid #2A1B0E;
+  --fog:.5;
+  --felt-tex:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='f'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.1' numOctaves='2' seed='5'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23f)' opacity='.2'/%3E%3C/svg%3E") 0 0/160px 160px;
+  --body-tex:
+    radial-gradient(70% 45% at 50% -4%, rgba(240,190,110,.13), transparent 72%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='320' height='220'%3E%3Cfilter id='w' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.004 .09' numOctaves='3' seed='7' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .30 0 0 0 0 .17 0 0 0 0 .08 0 0 0 .26 -.05'/%3E%3C/filter%3E%3Crect width='320' height='220' filter='url(%23w)'/%3E%3Cpath d='M0 55H320M0 110H320M0 165H320M0 219.5H320' stroke='%23000' stroke-opacity='.55' stroke-width='2'/%3E%3Cpath d='M0 57H320M0 112H320M0 167H320' stroke='%23fff' stroke-opacity='.04'/%3E%3C/svg%3E") 0 0/320px 220px;
+}
+
+.pk-stakes{text-align:center;font-family:var(--cond);font-size:16px;letter-spacing:.05em;color:var(--bone);margin:-2px 0 0}
+.pk-stakes:empty{display:none}
+.pk-stakes span{display:block;font-size:11.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);margin-bottom:2px}
+
+.pk-felt{
+  position:relative;border-radius:22px;padding:24px 12px 22px;
+  display:flex;flex-direction:column;align-items:center;gap:18px;
+  background:var(--felt-tex),radial-gradient(120% 95% at 50% -10%,var(--felt-hi) 0%,var(--felt) 55%,var(--felt-lo) 100%);
+  border:var(--felt-rim);
+  box-shadow:inset 0 0 0 1px rgba(0,0,0,.6), inset 0 0 60px rgba(0,0,0,.55), var(--shadow);
+}
+.pk-felt::before{content:"";position:absolute;inset:9px;border-radius:14px;
+  border:1px dashed rgba(var(--g),.28);pointer-events:none}
+.pk-side{display:flex;flex-direction:column;align-items:center;gap:9px;width:100%}
+.pk-row{display:flex;justify-content:center;gap:clamp(5px,1.8vw,11px);min-height:30px}
+.pk-mid{font-family:var(--cond);text-transform:uppercase;letter-spacing:.18em;font-size:12px;
+  color:var(--muted);padding:6px 14px;border-top:1px solid rgba(var(--g),.25);border-bottom:1px solid rgba(var(--g),.25)}
+.pk-rank{min-height:1.5em;font-family:var(--display);font-size:21px;color:var(--amber);text-align:center;
+  text-shadow:0 0 18px rgba(var(--a),.35)}
+
+.pc{
+  position:relative;flex:0 0 auto;width:clamp(52px,15vw,84px);aspect-ratio:5/7;border-radius:9px;
+  background:linear-gradient(160deg,#FBF4E0 0%,#EADDB9 60%,#D6C7A0 100%);
+  color:#17110D;font-family:Georgia,"Times New Roman",serif;font-weight:700;
+  box-shadow:inset 0 0 0 1px rgba(0,0,0,.35), 0 9px 16px -8px rgba(0,0,0,.95);
+  transition:transform .14s ease,box-shadow .14s ease;
+}
+.pc.red{color:#A8202E}
+.pc .idx{position:absolute;left:7%;top:4%;display:flex;flex-direction:column;align-items:center;
+  font-size:clamp(14px,3.9vw,21px);line-height:1}
+.pc .idx b{font-size:.85em;font-weight:700}
+.pc .idx.b{left:auto;right:7%;top:auto;bottom:4%;transform:rotate(180deg)}
+.pc .ctr{position:absolute;inset:0;display:grid;place-items:center;font-size:clamp(28px,8.4vw,46px);opacity:.92}
+.pc.back{
+  background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12'%3E%3Crect width='12' height='12' fill='%234E1020'/%3E%3Cpath d='M0 0L12 12M12 0L0 12' stroke='%238B2A3E' stroke-width='1'/%3E%3C/svg%3E") 0 0/12px 12px;
+  color:transparent;
+  box-shadow:inset 0 0 0 4px #4E1020, inset 0 0 0 5px rgba(227,181,95,.7), 0 9px 16px -8px rgba(0,0,0,.95);
+}
+.pc.pick{cursor:pointer}
+.pc.pick:hover{transform:translateY(-4px)}
+.pc.sel{transform:translateY(-14px);box-shadow:inset 0 0 0 1px rgba(0,0,0,.35),0 0 0 2px var(--green),0 14px 22px -8px rgba(0,0,0,.95)}
+.pc.sm{width:clamp(34px,9vw,44px);border-radius:6px}
+.pc.sm .idx{font-size:11px}.pc.sm .ctr{font-size:19px}
+.pc.dead{box-shadow:inset 0 0 0 1px rgba(0,0,0,.35),0 0 0 2px var(--magenta),0 0 22px rgba(var(--m),.7)}
+
+.shade{
+  display:flex;align-items:center;gap:10px;width:100%;margin-top:16px;text-align:left;cursor:pointer;
+  padding:12px 14px;border-radius:10px;border:1px dashed rgba(255,255,255,.12);
+  background:linear-gradient(90deg,rgba(0,0,0,.6),rgba(24,16,34,.4));
+  color:var(--dim);font-family:var(--body);font-size:14px;transition:color .2s,border-color .2s}
+.shade i{font-style:normal;font-size:18px;opacity:.7}
+.shade:hover:not(:disabled){color:var(--muted);border-color:rgba(255,255,255,.22)}
+.shade.armed{color:var(--bone);border-color:rgba(var(--m),.8);border-style:solid;animation:throb 1.1s ease-in-out infinite}
+.shade.spent{opacity:.35;cursor:default}
+@keyframes throb{0%,100%{box-shadow:0 0 0 0 rgba(var(--m),0)}50%{box-shadow:0 0 22px -2px rgba(var(--m),.55)}}
+
+label.check{display:flex;gap:10px;align-items:center;font-family:var(--body);text-transform:none;
+  letter-spacing:0;font-size:15px;font-weight:500;color:var(--bone);cursor:pointer}
+label.check input{width:18px;height:18px;accent-color:var(--green)}
+
+.pk-rev{display:flex;flex-direction:column;gap:11px;margin-bottom:18px}
+.pk-rev-row{display:grid;grid-template-columns:1fr;gap:8px;justify-items:center;padding:12px;
+  border:1px solid var(--line-soft);border-radius:11px;background:rgba(0,0,0,.3)}
+.pk-rev-row.win{border-color:rgba(var(--a),.7);box-shadow:0 0 0 1px rgba(var(--a),.25)}
+.pk-rev-row .nm{font-weight:600;font-size:14.5px}
+.pk-rev-row .rk{font-family:var(--cond);text-transform:uppercase;letter-spacing:.12em;font-size:13px;color:var(--amber)}
+.pk-row.sm{gap:5px;min-height:0}
+.reveal-box.dead{border-color:var(--magenta);box-shadow:0 0 70px -12px rgba(var(--m),.7),var(--shadow)}
+.reveal-box.dead .reveal-h{color:var(--magenta);text-shadow:0 0 30px rgba(var(--m),.75)}
+.reveal-box.dead .pk-rev-row.win .rk{color:var(--magenta)}
+
+/* ---------- home screen game menu ---------- */
+.games{display:grid;gap:12px;width:100%;max-width:470px;grid-template-columns:1fr 1fr}
+@media(max-width:520px){.games{grid-template-columns:1fr}}
+.gamecard{
+  text-align:left;padding:17px 17px 18px;border-radius:14px;cursor:pointer;color:var(--bone);
+  font-family:var(--body);border:1px solid rgba(var(--g),.45);
+  background:linear-gradient(180deg,rgba(24,36,44,.88),rgba(9,16,21,.92));
+  box-shadow:0 12px 28px -14px rgba(0,0,0,.9), inset 0 0 0 1px rgba(0,0,0,.5);
+  transition:transform .12s,border-color .12s,box-shadow .12s}
+.gamecard:hover{transform:translateY(-2px);border-color:var(--green);box-shadow:0 14px 32px -12px rgba(var(--g),.45), inset 0 0 0 1px rgba(0,0,0,.5)}
+.gamecard:active{transform:translateY(0)}
+.gamecard:focus-visible{outline:2px solid var(--green);outline-offset:3px}
+.gamecard b{display:block;font-family:var(--display);font-weight:400;font-size:25px;color:var(--green);line-height:1.1}
+.gamecard span{display:block;margin-top:7px;font-size:13.5px;color:var(--muted);line-height:1.38}
+.games-note{margin-top:-8px}

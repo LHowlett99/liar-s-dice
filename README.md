@@ -1,7 +1,9 @@
 # Liar's Dice at the Dead Man's Hand
 
-A table of Liar's Dice for chapter 15 of The Crooked Moon. One link, any device.
-Each player sees only their own five dice; the dealer sees everything.
+Two games for chapter 15 of The Crooked Moon, picked from a menu on the home
+screen: **Liar's Dice** for the whole table, and **Five-Card Draw**, a private game
+of poker where one player plays and everyone else watches. One link, any device.
+Each player sees only their own cards or dice; the dealer sees everything.
 
 **Live at <https://lhowlett99.github.io/liar-s-dice>** (repo: `liar-s-dice`).
 The rest of this file is the setup walkthrough, kept for reference or for
@@ -9,9 +11,9 @@ standing it back up if the Firebase project ever goes away.
 
 - Ones are wild
 - Bids, permanent dice loss and elimination are tracked
-- All six special traits, **once each per game**, and only for the character who
-  has the proficiency. Defaults come off the party's real sheets and the dealer
-  can grant or revoke any of them in the lobby
+- All six special traits, **once each per game** (twice with expertise), and only for
+  the character who has the proficiency. The grants come off the party's real sheets
+  and live in the `PROFICIENCIES` list at the top of `app.js`
 - Hard Read and Sly Reveal do real private reveals
 - The Sinner's pool grows by one die per character who sits down
 - A **Cast** button hides your own hand so you can share your screen
@@ -153,13 +155,49 @@ so a player's very first sound can be skipped.
 
 ---
 
+## Five-Card Draw (Sassafras's game)
+
+One hand of draw poker, one player against the house, everyone else spectating. It
+is built for the scene where Sassafras has to win, and she has a secret way to.
+
+**Running it.** On the home screen pick **Five-Card Draw**. You get a four-letter
+code like any table. Send the link to everyone; **only the player** should tap the
+seat (the first device to take it holds it, and **Free the seat** gives it back if
+the wrong person grabs it). Everyone else just waits and watches. In the lobby you
+can rename the player and the house, and write what is on the table ("Passage across
+the Drowned Crossroads"), which shows above the cards. Then **Deal the first hand**.
+
+**The hand.** Five cards each. The player taps up to three cards to throw back and
+draws once, or stands pat. The house draws for itself when you call it. You press
+**Call it** to go to the showdown, so you control the pace. Watchers see card backs
+the whole time, and only the player and you ever see her cards. The house's cards
+are only on your screen until the showdown flips everything. There is an option in
+the lobby to let watchers see her cards too.
+
+**The shadow cheat.** Under her cards there is a dim, unlabelled button, **Your
+shadow**. She taps it once to arm it ("Tap again to slip it into your hand"), then
+again within a few seconds to do it. Her five cards become the **Dead Man's Hand**:
+black aces and eights (A♠ A♣ 8♠ 8♣ and J♦), which outranks every real hand, royal
+flush included. It makes no sound for watchers, nothing in the public log changes,
+and the word "shadow" appears nowhere on their screens. The first anyone else sees
+is the showdown, which glows red and has the house fold. You can also trigger it for
+her with **Slip her the Dead Man's Hand** in your panel if she forgets or you want
+to time it. Only you see the note that it happened.
+
+Fair hands are scored properly (pair up to straight flush), so it can also be played
+straight. **Next hand** deals again; the shadow is available again each hand.
+
+---
+
 ## Files
 
 | File | What it is |
 |---|---|
-| `index.html` | Structure |
-| `styles.css` | The whole look |
-| `app.js` | Game rules and Firebase sync |
+| `index.html` | Home screen, and the Liar's Dice table |
+| `poker.html`, `poker.js` | Five-Card Draw |
+| `sfx.js` | The sounds, shared by both games |
+| `styles.css` | The whole look, all the themes |
+| `app.js` | Liar's Dice rules and Firebase sync |
 | `firebase-config.js` | **The only file you edit** |
 | `database.rules.json` | Paste into the Firebase Rules tab |
 

@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Five-Card Draw</title>
+<meta name="theme-color" content="#04080C">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2304080C'/%3E%3Ctext x='16' y='23' font-size='20' text-anchor='middle' fill='%23E3B55F' font-family='Georgia,serif'%3E%E2%99%A0%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pirata+One&family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@500;600;700&display=swap">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body data-theme="poker">
+
+<div class="tex" aria-hidden="true"></div>
+<div class="fog" aria-hidden="true"></div>
+<div class="grain" aria-hidden="true"></div>
+
+<!-- ============ LOADING / NO TABLE ============ -->
+<main id="view-wait" class="view">
+  <div class="landing">
+    <p class="eyebrow">Five-Card Draw</p>
+    <h1 class="logo" style="font-size:clamp(40px,11vw,70px)">Dealing&hellip;</h1>
+    <p class="tagline" id="waitNote">Finding the table.</p>
+  </div>
+</main>
+
+<!-- ============ LOBBY ============ -->
+<main id="view-lobby" class="view" hidden>
+  <div class="shell">
+    <header class="bar">
+      <div>
+        <p class="eyebrow">Table code</p>
+        <p class="code" id="lobbyCode">····</p>
+      </div>
+      <div class="bar-actions">
+        <button class="btn ghost sm" id="btnCopyLink">Copy the link</button>
+        <button class="btn ghost sm" id="btnLeave">Leave</button>
+      </div>
+    </header>
+
+    <section class="card">
+      <h2>The seat</h2>
+      <div class="body">
+        <p class="hint" id="lobbyHint"></p>
+        <ul class="chairs" id="heroChairWrap"></ul>
+        <p class="hint" style="margin-top:12px">Everyone else just opens the link and watches. Only the player sitting here ever sees these cards.</p>
+      </div>
+    </section>
+
+    <section class="card" id="dealerLobby" hidden>
+      <h2>Dealer</h2>
+      <div class="body">
+        <div class="field">
+          <label for="fHero">Who is playing?</label>
+          <input id="fHero" type="text" maxlength="24" autocomplete="off" spellcheck="false">
+        </div>
+        <div class="field">
+          <label for="fHouse">Who are they playing against?</label>
+          <input id="fHouse" type="text" maxlength="28" autocomplete="off" spellcheck="false">
+        </div>
+        <div class="field">
+          <label for="fStakes">What is on the table?</label>
+          <input id="fStakes" type="text" maxlength="80" autocomplete="off" spellcheck="false">
+        </div>
+        <div class="field">
+          <label class="check"><input id="fOpen" type="checkbox"> Let the watchers see her cards</label>
+        </div>
+        <div class="actions">
+          <button class="btn primary" id="btnDeal">Deal the first hand</button>
+          <button class="btn ghost" id="btnFreeSeat">Free the seat</button>
+        </div>
+      </div>
+    </section>
+  </div>
+</main>
+
+<!-- ============ TABLE ============ -->
+<main id="view-table" class="view" hidden>
+  <div class="shell">
+    <header class="bar">
+      <div class="bar-left">
+        <p class="eyebrow">Hand <span id="hRound">1</span> &middot; <span id="hCode">····</span></p>
+        <p class="turnline" id="hTurn">&nbsp;</p>
+      </div>
+      <div class="bar-actions">
+        <button class="btn ghost sm" id="btnSound" title="Cycle sound: everything, table only, or silent">Sound: all</button>
+        <button class="btn ghost sm" id="btnCast" title="Hide the cards for screen sharing">Cast</button>
+        <button class="btn ghost sm" id="btnLobby" hidden>Seat</button>
+      </div>
+    </header>
+
+    <p class="pk-stakes" id="stakes"></p>
+
+    <section class="pk-felt" id="felt">
+      <div class="pk-side">
+        <p class="eyebrow" id="houseName">The House</p>
+        <div class="pk-row" id="houseRow"></div>
+        <p class="pk-rank" id="houseRank"></p>
+      </div>
+      <div class="pk-mid" id="mid"></div>
+      <div class="pk-side">
+        <p class="pk-rank" id="heroRank"></p>
+        <div class="pk-row" id="heroRow"></div>
+        <p class="eyebrow" id="heroName">Sassafras</p>
+      </div>
+    </section>
+
+    <section class="card" id="heroCard" hidden>
+      <h2>Your hand</h2>
+      <div class="body" id="heroBody"></div>
+    </section>
+
+    <section class="card" id="dealerCard" hidden>
+      <h2>Dealer</h2>
+      <div class="body" id="dealerBody"></div>
+    </section>
+
+    <section class="card">
+      <h2>Play by play</h2>
+      <div class="body"><ul class="log" id="log"></ul></div>
+    </section>
+  </div>
+</main>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<!-- showdown overlay -->
+<div class="overlay" id="reveal" hidden>
+  <div class="reveal-box" id="revBox">
+    <p class="eyebrow">Showdown</p>
+    <h2 class="reveal-h" id="revH"></h2>
+    <div class="pk-rev" id="revHands"></div>
+    <p class="reveal-verdict" id="revVerdict"></p>
+    <button class="btn primary" id="revClose">Carry on</button>
+  </div>
+</div>
+
+<script type="module" src="poker.js"></script>
+</body>
+</html>
