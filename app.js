@@ -66,10 +66,10 @@ const sfx = (() => {
   function build(){
     const drive = ctx.createWaveShaper();
     const curve = new Float32Array(1024);
-    for (let i = 0; i < 1024; i++){ const x = i / 512 - 1; curve[i] = Math.tanh(x * 2.4) / Math.tanh(2.4); }
+    for (let i = 0; i < 1024; i++){ const x = i / 512 - 1; curve[i] = Math.tanh(x * 1.7) / Math.tanh(1.7); }
     drive.curve = curve;
     const tone = ctx.createBiquadFilter(); tone.type = "lowpass"; tone.frequency.value = 5200; tone.Q.value = 0.4;
-    const level = ctx.createGain(); level.gain.value = 0.5;
+    const level = ctx.createGain(); level.gain.value = 0.34;
     bus = ctx.createGain();
     bus.connect(drive); drive.connect(tone); tone.connect(level); level.connect(ctx.destination);
 
@@ -201,7 +201,7 @@ const sfx = (() => {
     },
     turn(){
       const k = feel();
-      thud(0, k.knock * 1.3, 0.1, 0.4, 0.3); thud(0.2, k.knock * 1.15, 0.1, 0.34, 0.3); rustle(0.05, 0.25, 0.12, 3000, 8000);
+      thud(0, k.knock * 1.3, 0.1, 0.22, 0.3); thud(0.2, k.knock * 1.15, 0.1, 0.18, 0.3); rustle(0.05, 0.25, 0.08, 3000, 8000);
     },
     reveal(){
       const k = feel();
@@ -215,7 +215,7 @@ const sfx = (() => {
       thud(0.05, k.knock * 0.5, 0.5, 0.8, 0.6);
     },
     trait(){
-      rustle(0, 0.22, 0.9, 1800, 8000, 0.2); rustle(0.17, 0.22, 0.8, 2500, 9000, 0.2); click(0.42, 2600, 4, 0.03, 0.4);
+      rustle(0, 0.22, 0.6, 1800, 8000, 0.2); rustle(0.17, 0.22, 0.55, 2500, 9000, 0.2); click(0.42, 2600, 4, 0.03, 0.25);
     },
     over(){
       const k = feel();
