@@ -8,7 +8,7 @@
 
 export const sfx = (() => {
   const MODES = ["all", "dice", "off"];
-  const LABEL = { all:"Sound: all", dice:"Sound: dice", off:"Sound: off" };
+  const LABEL = { all:"Sound: all", dice:"Sound: table", off:"Sound: off" };
   const FEEL = {
     plain:  { knock:150, tick:[1500, 4600] },
     king:   { knock:112, tick:[900, 3300] },
@@ -167,7 +167,7 @@ export const sfx = (() => {
     },
     turn(){
       const k = feel();
-      thud(0, k.knock * 1.3, 0.1, 0.22, 0.3); thud(0.2, k.knock * 1.15, 0.1, 0.18, 0.3); rustle(0.05, 0.25, 0.08, 3000, 8000);
+      thud(0, k.knock * 1.3, 0.1, 0.36, 0.3); thud(0.2, k.knock * 1.15, 0.1, 0.3, 0.3); rustle(0.05, 0.25, 0.1, 3000, 8000);
     },
     reveal(){
       const k = feel();
@@ -182,6 +182,21 @@ export const sfx = (() => {
     },
     trait(){
       rustle(0, 0.22, 0.6, 1800, 8000, 0.2); rustle(0.17, 0.22, 0.55, 2500, 9000, 0.2); click(0.42, 2600, 4, 0.03, 0.25);
+    },
+    /* one die set down on the wood: the count climbing at a reveal */
+    tick(){
+      const k = feel();
+      click(0, rand(k.tick[0], k.tick[1] * 0.8), rand(2.5, 4.5), 0.05, 0.75, 0.3);
+      thud(0, rand(k.knock * 1.2, k.knock * 1.7), 0.08, 0.3, 0.25);
+    },
+    /* somebody pulls up a chair */
+    sit(){
+      const k = feel();
+      creak(0, 0.38, 240, 150, 1.6, 0.4); thud(0.3, k.knock * 0.9, 0.16, 0.45, 0.4); rustle(0.05, 0.3, 0.2, 1500, 6000, 0.3);
+    },
+    /* a card lifted or put back */
+    pick(){
+      rustle(0, 0.07, 0.4, 2600, 9000, 0.2); click(0.05, rand(1000, 1400), 1.4, 0.03, 0.22, 0.2);
     },
     /* cards: a slide across felt, then the soft tap of it landing */
     cards(){

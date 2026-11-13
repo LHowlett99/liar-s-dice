@@ -10,7 +10,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pirata+One&family=Rye&family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@500;600;700&display=swap">
-<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="styles.css?v=4">
 </head>
 <body data-theme="landing">
 
@@ -30,6 +30,11 @@
     <p class="eyebrow">Chapter fifteen &middot; The Drowned Crossroads</p>
 
     <div class="hero" aria-hidden="true">
+      <svg class="moon" viewBox="0 0 120 120" focusable="false">
+        <defs><mask id="crescent"><rect width="120" height="120" fill="#000"/>
+          <circle cx="60" cy="60" r="46" fill="#fff"/><circle cx="80" cy="50" r="42" fill="#000"/></mask></defs>
+        <circle cx="60" cy="60" r="46" fill="#F3E4B4" mask="url(#crescent)"/>
+      </svg>
       <svg class="fan" viewBox="0 0 380 250" role="img" focusable="false">
         <defs>
           <linearGradient id="paper" x1="0" y1="0" x2="1" y2="1">
@@ -142,7 +147,10 @@
           <textarea id="lobbyNames" rows="4" spellcheck="false"></textarea>
         </div>
         <p class="hint" id="lobbyPool"></p>
-        <button class="btn primary" id="btnDeal">Deal the first round</button>
+        <div class="actions" style="margin-top:14px">
+          <button class="btn primary" id="btnResume" hidden>Back to the game in progress</button>
+          <button class="btn primary" id="btnDeal">Deal the first round</button>
+        </div>
       </div>
     </section>
   </div>
@@ -158,13 +166,14 @@
         <p class="turnline" id="hTurn">&nbsp;</p>
       </div>
       <div class="bar-actions">
-        <button class="btn ghost sm" id="btnSound" title="Cycle sound: everything, dice only, or silent">Sound: all</button>
-        <button class="btn ghost sm" id="btnCast" title="Hide your own hand for screen sharing">Cast</button>
-        <button class="btn ghost sm" id="btnSeatSwap">Seat</button>
+        <button class="btn ghost sm" id="btnSound" title="Cycle sound: everything, table only, or silent">Sound: all</button>
+        <button class="btn ghost sm" id="btnCast" title="Hide the dice for screen sharing">Cast</button>
+        <button class="btn ghost sm" id="btnMenu" hidden title="Open the home screen to start the other game. This table stays as it is.">Menu</button>
+        <button class="btn ghost sm" id="btnSeatSwap" title="Send everyone back to the lobby to change seats. The game can be picked up again.">Seats</button>
       </div>
     </header>
 
-    <div class="stage">
+    <div class="stage" id="stage">
       <!-- felt with the seats round it -->
       <section class="felt" id="felt">
         <div class="felt-inner">
@@ -204,7 +213,7 @@
       <div class="body" id="dealerBody"></div>
     </section>
 
-    <section class="card">
+    <section class="card" id="logCard">
       <h2>Play by play</h2>
       <div class="body"><ul class="log" id="log"></ul></div>
     </section>
@@ -224,10 +233,24 @@
       <span class="rc-l" id="revLabel"></span>
     </div>
     <p class="reveal-verdict" id="revVerdict"></p>
-    <button class="btn primary" id="revClose">Carry on</button>
+    <div class="actions center">
+      <button class="btn primary" id="revNext" hidden>Next round</button>
+      <button class="btn" id="revClose">Back to the table</button>
+    </div>
   </div>
 </div>
 
-<script type="module" src="app.js"></script>
+<!-- end of the game -->
+<div class="overlay" id="finale" hidden>
+  <div class="reveal-box finale" id="finBox">
+    <p class="eyebrow">The game is over</p>
+    <div class="fin-faces" id="finFaces"></div>
+    <h2 class="reveal-h fin-h" id="finH"></h2>
+    <p class="reveal-verdict on" id="finLine"></p>
+    <div class="actions center"><button class="btn primary" id="finClose">Back to the table</button></div>
+  </div>
+</div>
+
+<script type="module" src="app.js?v=4"></script>
 </body>
 </html>

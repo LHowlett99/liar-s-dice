@@ -8,7 +8,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getDatabase, ref, onValue, set, get }
   from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 import { firebaseConfig } from "./firebase-config.js";
-import { sfx } from "./sfx.js";
+import { sfx } from "./sfx.js?v=4";
+import { avatarHTML, dealerOf, markDealer } from "./cast.js?v=4";
 
 const LS = { room:"dmh.room", dealer:"dmh.dealer", hero:"dmh.hero" };
 const RANKS = "23456789TJQKA";
@@ -19,8 +20,10 @@ const MANY = { 2:"Deuces", 3:"Threes", 4:"Fours", 5:"Fives", 6:"Sixes", 7:"Seven
 
 let db = null, roomRef = null, room = null, roomCode = null;
 let isDealer = false, castMode = false, lastSnap = null, seenReveal = null;
-let lobbyFilled = false, shadowArmed = false, armTimer = null;
+let lobbyFilled = false, shadowArmed = false, armTimer = null, unsub = null;
+let callArmed = false, dealArmed = false, revTimers = [];
 const discard = new Set();
+const seenCards = { hero:[], house:[] };   // what each row last showed, so only new cards move
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c]));
@@ -140,7 +143,7 @@ function dealHand(){
   h.drew = false; h.shadow = false; o.drew = false;
   room.deck = deck; room.reveal = null; room.secret = [];
   room.phase = "play"; room.round = (room.round || 0) + 1;
-  discard.clear(); shadowArmed = false;
+  discard.clear(); shadowArmed = false; callArmed = false; dealArmed = false;
   logAdd(`<b>Hand ${room.round}.</b> Five cards each.`);
   save();
 }
@@ -178,6 +181,8 @@ function useShadow(){
   const h = hero(), o = house();
   if (room.phase !== "play" || h.shadow) return;
   const dead = new Set(DEAD);
+  // to the watchers she simply kept her cards, so the table reads the same as any other hand
+  if (!h.drew) logAdd(`<b>${esc(h.name)}</b> stands pat.`);
   h.hand = DEAD.slice(); h.shadow = true; h.drew = true;
   const deck = (room.deck || []).filter(c => !dead.has(c));
   o.hand = o.hand.map(c => dead.has(c) ? deck.shift() : c);
@@ -243,9 +248,8 @@ function renderLobby(){
       ? `${h.name} is seated. You will be watching.`
       : `If you are ${h.name}, take the seat. Everyone else, just wait: you are watching.`;
   const taken = h.claimed && !mine;
-  const initials = h.name.split(/\s+/).map(w => w[0]).join("").slice(0, 2).toUpperCase();
   $("heroChairWrap").innerHTML = `<li><button class="chair${mine ? " mine" : ""}${taken ? " taken" : ""}" id="heroChair" ${taken ? "disabled" : ""}>
-    <span class="av">${esc(initials)}</span>
+    ${avatarHTML(h.name)}
     <span><span class="nm">${esc(h.name)}</span><span class="st">${mine ? "that is you" : taken ? "taken" : "free"}</span></span></button></li>`;
   $("heroChair").onclick = claimHero;
 
@@ -264,14 +268,34 @@ function faceUp(who){
   return who === "hero" && (isHero() || !!room.openHand);
 }
 
+/* one row of five. A card only animates when the slot shows something new:
+   dealt in, turned face up, or (on her own screen) swapped by the shadow. */
+function rowHTML(who, cards, up, pick){
+  const prev = seenCards[who], tag = "#" + room.round;
+  const shaded = who === "hero" && hero().shadow;
+  let n = 0;
+  const now = cards.map(c => (up ? c : "back") + tag);
+  const html = now.map((t, i) => {
+    const isNew = prev[i] !== t;
+    const move = !isNew ? "" : (up && prev[i] === "back" + tag) ? "turn " : (shaded && up && prev[i] && prev[i].endsWith(tag)) ? "shadein " : "dealt ";
+    const cls = move + (pick ? "pick " : "") + (who === "hero" && discard.has(i) ? "sel" : "");
+    const attrs = `data-i="${i}"` + (isNew ? ` style="animation-delay:${(n++) * 85}ms"` : "");
+    return cardHTML(up ? cards[i] : null, cls, attrs);
+  }).join("");
+  seenCards[who] = now;
+  return html;
+}
+
 function renderTable(){
   const h = hero(), o = house(), mine = isHero();
+  if (h.drew || room.phase !== "play") discard.clear();
   $("hRound").textContent = room.round;
   $("hCode").textContent = roomCode;
   $("btnLobby").hidden = !isDealer;
+  $("btnMenu").hidden = !isDealer;
   $("btnCast").hidden = !(isDealer || mine);
-  $("houseName").textContent = o.name;
-  $("heroName").textContent = h.name;
+  $("houseWho").innerHTML = avatarHTML(o.name, "npc") + `<span class="eyebrow">${esc(o.name)}</span>`;
+  $("heroWho").innerHTML = avatarHTML(h.name) + `<span class="eyebrow">${esc(h.name)}</span>`;
   $("stakes").innerHTML = room.stakes ? `<span>On the table</span> ${esc(room.stakes)}` : "";
 
   let tl = "";
@@ -283,10 +307,18 @@ function renderTable(){
   const hs = hand(h), os = hand(o);
   const hUp = faceUp("hero"), oUp = faceUp("house");
   const pick = mine && room.phase === "play" && !h.drew && !castMode;
-  $("heroRow").innerHTML = hUp
-    ? hs.map((c, i) => cardHTML(c, (pick ? "pick " : "") + (discard.has(i) ? "sel" : ""), `data-i="${i}"`)).join("")
-    : backs();
-  $("houseRow").innerHTML = oUp ? os.map(c => cardHTML(c)).join("") : backs();
+  // a row is only rebuilt when what it shows has changed, so a card that is mid-flight
+  // is not swapped out from under its own animation by the next render
+  const paint = (id, who, cards, up, pk) => {
+    const el = $(id);
+    const key = cards.length !== 5 ? "empty"
+      : cards.map(c => up ? c : "back").join() + "#" + room.round + "|" + pk + "|" + (who === "hero" ? [...discard].sort().join("") : "");
+    if (el.dataset.key === key) return;
+    el.dataset.key = key;
+    el.innerHTML = cards.length === 5 ? rowHTML(who, cards, up, pk) : backs();
+  };
+  paint("heroRow", "hero", hs, hUp, pick);
+  paint("houseRow", "house", os, oUp, false);
   $("heroRank").textContent = hUp && hs.length === 5 ? evalHand(hs).name : "";
   $("houseRank").textContent = oUp && os.length === 5 ? evalHand(os).name : "";
   $("heroRow").querySelectorAll(".pick").forEach(el => {
@@ -294,7 +326,8 @@ function renderTable(){
       const i = +el.dataset.i;
       if (discard.has(i)) discard.delete(i);
       else if (discard.size < 3) discard.add(i);
-      else toast("Three at most.");
+      else return toast("Three at most.");
+      sfx.pick();
       renderTable();
     };
   });
@@ -322,7 +355,9 @@ function renderHeroCard(mine){
     }
     const spent = h.shadow;
     html += `<button class="shade${shadowArmed ? " armed" : ""}${spent ? " spent" : ""}" id="bShade" ${spent ? "disabled" : ""}>
-      <i>◐</i><span>${spent ? "Done. Say nothing." : shadowArmed ? "Tap again to slip it into your hand" : "Your shadow"}</span></button>`;
+      <i>◐</i><span>${spent ? "<b>It's done.</b><small>Your hand is now the Dead Man's Hand. Say nothing.</small>"
+        : shadowArmed ? "<b>Tap again to do it</b><small>Your five cards will turn into the Dead Man's Hand</small>"
+        : "<b>Cheat with your shadow</b><small>Swap your whole hand for the Dead Man's Hand (the best hand there is). Two taps.</small>"}</span></button>`;
   } else {
     html += `<p class="hint">The hands are open.</p>`;
   }
@@ -342,13 +377,20 @@ function renderDealer(){
   $("dealerCard").hidden = !isDealer;
   if (!isDealer) return;
   const h = hero(), o = house();
-  let html = `<p class="hint">${esc(h.name)} ${h.drew ? "has drawn" : "has not drawn yet"}. `
-    + `${hero().shadow ? "<b>The shadow has been used.</b>" : ""}</p>`;
+  let html = "";
+  if (room.phase === "play"){
+    html += `<p class="hint">${h.claimed ? "" : `<b style="color:var(--magenta)">Nobody is in ${esc(h.name)}'s seat.</b> Go back to the lobby so they can take it. `}`
+      + `${esc(h.name)} ${h.drew ? "has made the draw. Call it when the moment is right." : "has not drawn yet."} `
+      + `${h.shadow ? `<b style="color:var(--bone)">The shadow has been used.</b>` : ""}</p>`;
+  } else {
+    html += `<p class="hint">The hands are open.</p>`;
+  }
   html += `<div class="actions" style="margin-top:12px">`;
   if (room.phase === "play"){
-    html += `<button class="btn primary" id="dCall">Call it</button>`;
+    html += `<button class="btn primary" id="dCall">${callArmed && !h.drew ? "Call it anyway" : "Call it"}</button>`;
     if (!h.shadow) html += `<button class="btn danger" id="dShade">Slip her the Dead Man's Hand</button>`;
   } else {
+    html += `<button class="btn" id="dShow">Show the hands again</button>`;
     html += `<button class="btn primary" id="dNext">Next hand</button>`;
   }
   html += `<button class="btn ghost" id="dLobby">Back to the lobby</button></div>`;
@@ -356,32 +398,66 @@ function renderDealer(){
   if (sec.length) html += `<div class="note mag"><b>Only you can see this</b>${sec.map(s => `<div>${s}</div>`).join("")}</div>`;
   $("dealerBody").innerHTML = html;
   const on = (id, fn) => { const el = $(id); if (el) el.onclick = fn; };
-  on("dCall", showdown);
+  on("dCall", () => {
+    // calling before she has drawn is allowed, but never by a slip of the thumb
+    if (!hero().drew && !callArmed){
+      callArmed = true; renderDealer();
+      return toast(`${hero().name} has not drawn yet. Tap again to call it anyway.`);
+    }
+    callArmed = false; showdown();
+  });
+  on("dShow", () => { seenReveal = null; maybeShowReveal(); });
   on("dShade", useShadow);
   on("dNext", dealHand);
   on("dLobby", () => { room.phase = "lobby"; save(); });
 }
 
+/* The showdown is played out, not just printed: both hands go down as backs, the
+   house turns its cards first, then hers go over one at a time. */
+function stopReveal(){ revTimers.forEach(clearTimeout); revTimers = []; }
 function maybeShowReveal(){
   const r = room.reveal;
-  if (!r || room.phase !== "showdown"){ $("reveal").hidden = true; return; }
+  if (!r || room.phase !== "showdown"){ $("reveal").hidden = true; stopReveal(); return; }
   if (seenReveal === r.id) return;
   seenReveal = r.id;
+  stopReveal();
   const dead = r.winner === "hero" && r.hero.dead;
   $("revBox").classList.toggle("dead", dead);
-  $("revH").textContent = r.winner === "tie" ? "A dead heat"
-    : dead ? "The Dead Man's Hand"
-    : `${r[r.winner].name} takes it`;
-  const row = (p, win) => `<div class="pk-rev-row${win ? " win" : ""}">
-    <span class="nm">${esc(p.name)}</span>
-    <span class="pk-row sm">${p.hand.map(c => cardHTML(c, "sm" + (p.dead ? " dead" : ""))).join("")}</span>
+  $("revBox").classList.remove("done");
+  $("revHands").classList.remove("done");
+  $("revVerdict").classList.remove("on");
+  $("revH").textContent = "The cards go over";
+  const row = (p, win, who) => `<div class="pk-rev-row${win ? " win" : ""}" style="animation-delay:${who === "hero" ? 140 : 0}ms">
+    <span class="who">${avatarHTML(p.name, "sm" + (who === "house" ? " npc" : ""))}<span class="nm">${esc(p.name)}</span></span>
+    <span class="pk-row sm">${p.hand.map(() => cardHTML(null, "sm")).join("")}</span>
     <span class="rk">${esc(p.rank)}</span></div>`;
-  $("revHands").innerHTML = row(r.hero, r.winner === "hero") + row(r.house, r.winner === "house");
+  $("revHands").innerHTML = row(r.house, r.winner === "house", "house") + row(r.hero, r.winner === "hero", "hero");
   $("revVerdict").innerHTML = r.winner === "tie" ? "Neither of them blinks."
     : dead ? `Nobody at this table has ever seen a hand like it. <span class="lose">${esc(r.house.name)}</span> folds.`
     : r.winner === "hero" ? `<span class="safe">${esc(r.hero.name)}</span> wins the hand.`
     : `<span class="lose">${esc(r.hero.name)}</span> loses the hand.`;
   $("reveal").hidden = false;
+  $("reveal").scrollTop = 0;
+
+  const slots = $("revHands").querySelectorAll(".pc");
+  const lead = 650, gap = dead ? 300 : 170, heroAt = lead + 5 * 150 + 450;
+  const seq = r.house.hand.map((c, i) => ({ i, c, at:lead + i * 150, dead:false }))
+    .concat(r.hero.hand.map((c, i) => ({ i:5 + i, c, at:heroAt + i * gap, dead:!!r.hero.dead })));
+  seq.forEach(f => revTimers.push(setTimeout(() => {
+    if (slots[f.i]) slots[f.i].outerHTML = cardHTML(f.c, "sm turn" + (f.dead ? " dead" : ""));
+    sfx.flip();
+  }, f.at)));
+  revTimers.push(setTimeout(() => {
+    $("revH").textContent = r.winner === "tie" ? "A dead heat"
+      : dead ? "The Dead Man's Hand"
+      : `${r[r.winner].name} takes it`;
+    $("revBox").classList.add("done");
+    $("revHands").classList.add("done");
+    $("revVerdict").classList.add("on");
+    if (r.winner === "house") sfx.lose();
+    else if (dead) sfx.over();
+    else sfx.bid();
+  }, seq[seq.length - 1].at + 750));
 }
 
 /* ---------------- sound ---------------- */
@@ -389,14 +465,15 @@ function maybeShowReveal(){
 function diff(prev, cur){
   if (!prev || !cur) return;
   const ph = prev.seats[0], ch = cur.seats[0], po = prev.seats[1], co = cur.seats[1];
+  if (cur.phase === "lobby"){ if (ch.claimed && !ph.claimed) sfx.sit(); return; }
   if (cur.phase === "play" && (prev.phase !== "play" || (cur.round || 0) > (prev.round || 0))) return sfx.cards();
-  if (cur.reveal && (!prev.reveal || prev.reveal.id !== cur.reveal.id)){
-    sfx.reveal();
-    if (cur.reveal.winner === "house") setTimeout(() => sfx.lose(), 500);
-    else if (cur.reveal.hero.dead) setTimeout(() => sfx.over(), 700);
+  if (cur.reveal && (!prev.reveal || prev.reveal.id !== cur.reveal.id)) return sfx.reveal();
+  if (ch.shadow && !ph.shadow){
+    // only she and the dealer hear the shadow; to everyone else it is a hand being kept
+    if (isHero() || isDealer) sfx.shadow();
+    else if (ch.drew && !ph.drew) sfx.draw();
     return;
   }
-  if (ch.shadow && !ph.shadow){ if (isHero() || isDealer) sfx.shadow(); return; }
   if (ch.drew && !ph.drew) return sfx.draw();
   if (co.drew && !po.drew) sfx.draw();
 }
@@ -416,15 +493,18 @@ function leaveToMenu(){
   location.href = "index.html";
 }
 function attach(code){
+  if (unsub){ unsub(); unsub = null; }
   roomCode = code; lastSnap = null;
   roomRef = ref(db, "rooms/" + code);
   try { localStorage.setItem(LS.room, code); } catch {}
+  // the way back in if the dealer's device forgets it was the dealer: open the link with &dealer=1
+  if (new URLSearchParams(location.search).get("dealer")){ try { markDealer(code); } catch {} }
   const url = new URL(location.href);
   url.search = "?t=" + code;
   history.replaceState(null, "", url);
-  try { isDealer = localStorage.getItem(LS.dealer) === code; } catch {}
+  try { isDealer = dealerOf(code); } catch {}
 
-  onValue(roomRef, snap => {
+  unsub = onValue(roomRef, snap => {
     const v = snap.val();
     if (!v){
       $("waitNote").textContent = "That table is not there any more. Back to the menu.";
@@ -440,7 +520,10 @@ function attach(code){
 
 /* ---------------- wiring ---------------- */
 
-$("btnLeave").onclick = leaveToMenu;
+$("btnLeave").onclick = async () => {
+  if (room && isHero()){ const h = hero(); h.claimed = false; delete h.token; await save(); }   // give the seat back
+  leaveToMenu();
+};
 $("btnCopyLink").onclick = async () => {
   const url = new URL(location.href); url.search = "?t=" + roomCode;
   try { await navigator.clipboard.writeText(url.toString()); toast("Link copied. Send it to the table."); }
@@ -451,20 +534,28 @@ $("btnFreeSeat").onclick = () => {
 };
 $("btnDeal").onclick = () => {
   const h = hero(), o = house();
+  // dealing to an empty chair leaves nobody able to play the hand, so make the dealer mean it
+  if (!h.claimed && !dealArmed){
+    dealArmed = true; $("btnDeal").textContent = "Deal anyway";
+    return toast("Nobody has taken the seat yet. Tap again to deal anyway.");
+  }
+  dealArmed = false; $("btnDeal").textContent = "Deal the first hand";
   h.name = $("fHero").value.trim() || "Sassafras";
   o.name = $("fHouse").value.trim() || "The House";
   room.stakes = $("fStakes").value.trim();
   room.openHand = $("fOpen").checked;
   dealHand();
 };
+$("btnMenu").onclick = () => { location.href = "index.html?menu=1"; };
 $("btnLobby").onclick = () => { if (!isDealer) return; room.phase = "lobby"; save(); };
 $("btnCast").onclick = () => {
   castMode = !castMode;
   $("btnCast").textContent = castMode ? "Casting" : "Cast";
+  $("btnCast").classList.toggle("on", castMode);
   toast(castMode ? "The cards are hidden. Safe to share the screen." : "The cards are back.");
   render();
 };
-$("revClose").onclick = () => { $("reveal").hidden = true; };
+$("revClose").onclick = () => { $("reveal").hidden = true; stopReveal(); };
 
 const paintSound = () => { $("btnSound").textContent = sfx.label(); };
 paintSound();
@@ -485,7 +576,7 @@ if (db){
   if (params.get("new")){
     const code = newCode();
     room = makeRoom();
-    try { localStorage.setItem(LS.dealer, code); localStorage.removeItem(LS.hero); } catch {}
+    try { markDealer(code); localStorage.removeItem(LS.hero); } catch {}
     attach(code);
     set(roomRef, clone(room)).catch(() => toast("Could not reach the table. Check your connection."));
     render();

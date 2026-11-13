@@ -16,8 +16,11 @@ standing it back up if the Firebase project ever goes away.
   and live in the `PROFICIENCIES` list at the top of `app.js`
 - Hard Read and Sly Reveal do real private reveals
 - The Sinner's pool grows by one die per character who sits down
-- A **Cast** button hides your own hand so you can share your screen
+- A **Cast** button hides the dice so you can share your screen
 - Three tables, each with its own look and sound: a plain test, Murkwater Bend and the crocodile
+- Every character and the house wears their portrait (`img/`, matched by name in `cast.js`)
+- The game ends itself: last seat standing, the house when no player is left, and at the
+  crocodile's table the moment he is eliminated
 
 ---
 
@@ -94,22 +97,37 @@ A minute later it is live at `https://YOUR-USERNAME.github.io/liars-dice/`.
 **You** open the link and hit **Deal a new table**. You get a four-letter code.
 **Copy the link** and send it to the group; it already has the code in it.
 
-Each player opens it on their phone and taps their name to sit down. You stay on
-the dealer view, which shows every hand and a running tally of each face.
+Each player opens it on their phone and taps their name to sit down. You do not sit:
+the dealer plays the house. Your screen shows the felt with every hand face up, and
+beside it the **Dealer** panel. When it is the house's turn its dice and the bid and
+challenge buttons appear at the top of that panel.
 
 Then: **Deal the first round** → they bid in turn on their own phones → someone
-challenges → the reveal flips every hand face up at once, lights the matching
-dice, counts them up, and names who lost a die. **Next round** carries on.
+challenges → the reveal lays the hands down one by one, lights the matching dice as
+it counts them, and names who lost a die. **Next round** is on the reveal itself (for
+you only) and in the Dealer panel.
 
-If a player cannot get on a phone, the dealer table has a **Copy** button per
-seat that puts `Sassafras — your hand: 3 5 5 1 2 (ones are wild)` on your
-clipboard, along with the cheats they have not spent yet, ready to paste into a DM.
+The Dealer panel also lists every seat with its hand, and two small buttons per seat:
+
+- **Copy** puts `Sassafras — your hand: 3 5 5 1 2 (ones are wild)` on your clipboard,
+  with the cheats they have not spent yet, to paste into a DM for a player with no phone.
+- **Free** lets go of a taken chair so another device can sit in it (a dead phone, a
+  swapped tablet). The player then taps their name on the new device.
+
+**Menu** in the top bar (dealer only) opens the home screen so you can start the other
+game without touching this one. Your tables are listed under the code box there, so you
+can hop between the dice table and the poker table, and you stay the dealer of both.
+
+Anyone who opens the link after the deal can still sit: an empty chair shows up as a
+button at the top of their screen. **Seats** in the top bar sends everyone back to
+the lobby to re-pick; **Back to the game in progress** picks the same game up again.
 
 ### Cheats
 
 Each trait is once per game per proficiency (twice with expertise), not three uses
 from a shared pool. A player only sees the cheats their character has. Uses left
-are shown on each button.
+are the lit dots on each button. Traits work while a round is being bid; Poker Face
+also works once the hands are showing, since it answers a challenge.
 
 | | Hard Read | Deft Hands | Sly Reveal | Poker Face | Daring Dicer | Fated Luck |
 |---|---|---|---|---|---|---|
@@ -147,7 +165,7 @@ the top bar cycles three ways, remembered per device:
 
 - **all**: the table sounds plus the odd noise from the room (creaks, drips and
   rustles at Murkwater Bend; splashes, bubbles and a low growl in the swamp)
-- **dice**: just the table sounds
+- **table**: just the table sounds
 - **off**
 
 The plain test table has no atmosphere noises. Phones only allow sound after a first tap,
@@ -174,15 +192,19 @@ the whole time, and only the player and you ever see her cards. The house's card
 are only on your screen until the showdown flips everything. There is an option in
 the lobby to let watchers see her cards too.
 
-**The shadow cheat.** Under her cards there is a dim, unlabelled button, **Your
-shadow**. She taps it once to arm it ("Tap again to slip it into your hand"), then
-again within a few seconds to do it. Her five cards become the **Dead Man's Hand**:
+**The shadow cheat.** Under her cards there is a dim button, **Cheat with your
+shadow**, with a line saying it swaps her whole hand for the Dead Man's Hand. She taps
+it once to arm it ("Tap again to do it"), then again within a few seconds to do it. Her five cards become the **Dead Man's Hand**:
 black aces and eights (A♠ A♣ 8♠ 8♣ and J♦), which outranks every real hand, royal
-flush included. It makes no sound for watchers, nothing in the public log changes,
-and the word "shadow" appears nowhere on their screens. The first anyone else sees
-is the showdown, which glows red and has the house fold. You can also trigger it for
-her with **Slip her the Dead Man's Hand** in your panel if she forgets or you want
-to time it. Only you see the note that it happened.
+flush included. Watchers get no tell: if she had not drawn yet the table just reads
+"Sassafras stands pat", and the word "shadow" appears nowhere on their screens. The
+first anyone else sees is the showdown, where the cards go over one at a time, the
+last of them glows red, and the house folds. You can also trigger it for her with
+**Slip her the Dead Man's Hand** in your panel if she forgets or you want to time it.
+Only you see the note that it happened.
+
+Type a name from the cast into **Who are they playing against?** (Mister Crossroads,
+Vander Boone, Lyla Webb) and that portrait sits across the table from her.
 
 Fair hands are scored properly (pair up to straight flush), so it can also be played
 straight. **Next hand** deals again; the shadow is available again each hand.
@@ -196,6 +218,7 @@ straight. **Next hand** deals again; the shadow is available again each hand.
 | `index.html` | Home screen, and the Liar's Dice table |
 | `poker.html`, `poker.js` | Five-Card Draw |
 | `sfx.js` | The sounds, shared by both games |
+| `cast.js`, `img/` | The portraits, matched to seats by name |
 | `styles.css` | The whole look, all the themes |
 | `app.js` | Liar's Dice rules and Firebase sync |
 | `firebase-config.js` | **The only file you edit** |
@@ -213,5 +236,15 @@ or you made a Firestore instead of a Realtime Database. Check step 3.
 Firebase project, old links die with it. Deal a new table.
 
 **Player sees somebody else's dice.** They claimed the wrong chair. Only the dealer
-has the **Seat** button in the top bar: hit it to send everyone back to the lobby and
-re-pick.
+has the **Seats** button in the top bar: hit it to send everyone back to the lobby to
+re-pick, then **Back to the game in progress**.
+
+**A player's phone died or they switched device.** Press **Free** next to their name
+in the Dealer panel, and they tap their name on the new device.
+
+**Your own device forgot it was the dealer** (a different browser, a private window).
+Open the table link with `&dealer=1` on the end, for example
+`…/liar-s-dice/?t=ABCD&dealer=1`, and that device is the dealer again.
+
+**A change to the site is not showing.** GitHub Pages caches for ten minutes. Reload
+once more, or wait a few minutes.

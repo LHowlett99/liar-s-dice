@@ -589,6 +589,8 @@ body[data-theme="poker"]{
   background:linear-gradient(90deg,rgba(0,0,0,.6),rgba(24,16,34,.4));
   color:var(--dim);font-family:var(--body);font-size:14px;transition:color .2s,border-color .2s}
 .shade i{font-style:normal;font-size:18px;opacity:.7}
+.shade span b{display:block;font-weight:600;font-size:14.5px}
+.shade span small{display:block;font-size:12px;line-height:1.35;opacity:.75;margin-top:2px}
 .shade:hover:not(:disabled){color:var(--muted);border-color:rgba(255,255,255,.22)}
 .shade.armed{color:var(--bone);border-color:rgba(var(--m),.8);border-style:solid;animation:throb 1.1s ease-in-out infinite}
 .shade.spent{opacity:.35;cursor:default}
@@ -624,3 +626,153 @@ label.check input{width:18px;height:18px;accent-color:var(--green)}
 .gamecard b{display:block;font-family:var(--display);font-weight:400;font-size:25px;color:var(--green);line-height:1.1}
 .gamecard span{display:block;margin-top:7px;font-size:13.5px;color:var(--muted);line-height:1.38}
 .games-note{margin-top:-8px}
+
+/* ===========================================================
+   THE CAST AND THE FINISH
+   Portraits on every seat, a staged reveal, an ending, and the
+   small touches that make it feel like a table and not a form.
+   =========================================================== */
+
+/* ---------- portraits ---------- */
+.av{width:44px;height:44px;font-size:16px;position:relative;
+  box-shadow:0 0 0 2px rgba(0,0,0,.45), 0 5px 10px -4px rgba(0,0,0,.85)}
+.av.npc{background:rgba(var(--m),.16);border-color:rgba(var(--m),.45);color:var(--magenta)}
+.av.pic{overflow:hidden;border:2px solid rgba(var(--g),.7);
+  background:radial-gradient(circle at 50% 30%, rgba(var(--g),.34), rgba(0,0,0,.55) 75%)}
+.av.pic img{display:block;width:100%;height:100%;object-fit:cover;user-select:none;-webkit-user-drag:none}
+.av.pic.npc{border-color:rgba(var(--m),.75)}
+/* the house portraits come with their own rope frame, so they wear no ring */
+.av.pic.framed{border:0;background:none;overflow:visible;box-shadow:none}
+.av.pic.framed img{transform:scale(1.16);filter:drop-shadow(0 4px 6px rgba(0,0,0,.85))}
+.av.sm{width:32px;height:32px;font-size:12px}
+.av.lg{width:62px;height:62px;font-size:22px}
+.av.xl{width:108px;height:108px;font-size:36px}
+.chair .av{width:50px;height:50px}
+.chair.taken .av{filter:saturate(.75)}
+.chair.mine{box-shadow:0 0 0 1px rgba(var(--g),.35), 0 0 26px -10px rgba(var(--g),.7)}
+
+/* ---------- seats ---------- */
+.seat .who{min-width:0}
+.seat.turn .av{animation:beat 1.7s ease-in-out infinite}
+@keyframes beat{
+  0%,100%{box-shadow:0 0 0 2px var(--amber), 0 0 14px rgba(var(--a),.45)}
+  50%{box-shadow:0 0 0 3px var(--amber), 0 0 28px rgba(var(--a),.9)}}
+.seat.out .av{filter:grayscale(1) brightness(.8)}
+.seat.out .nm{text-decoration:line-through;text-decoration-color:rgba(var(--m),.8)}
+.seat.target{cursor:pointer;border-color:var(--green);background:rgba(var(--g),.08)}
+.seat.target:hover{background:rgba(var(--g),.17)}
+.says{display:inline-block;margin-left:8px;padding:1px 9px 2px;border-radius:999px;
+  font-family:var(--cond);font-weight:700;font-size:13px;letter-spacing:.05em;line-height:1.35;
+  color:var(--on-g);background:var(--green);vertical-align:1px;white-space:nowrap;
+  box-shadow:0 0 14px -4px rgba(var(--g),.8)}
+
+.bid-v{display:flex;align-items:center;justify-content:flex-end;gap:9px}
+.bid-v .x{font-size:.55em;opacity:.7}
+.bid-v .die.sm{width:38px;height:38px;border-radius:8px;padding:6px}
+.bid-v .die.sm .pip{width:6px;height:6px}
+
+.hand-panel{transition:border-color .25s, box-shadow .25s}
+.hand-panel.myturn{border-color:rgba(var(--a),.8);
+  box-shadow:0 0 0 1px rgba(var(--a),.28), 0 0 36px -10px rgba(var(--a),.6), var(--shadow)}
+
+/* ---------- buttons with a little weight to them ---------- */
+.btn{box-shadow:inset 0 1px 0 rgba(255,255,255,.07), 0 2px 0 rgba(0,0,0,.42)}
+.btn.primary,.btn.danger{
+  background-image:linear-gradient(180deg,rgba(255,255,255,.26),rgba(255,255,255,0) 52%,rgba(0,0,0,.18))}
+.btn.ghost{box-shadow:none}
+.btn.on{border-color:var(--amber);color:var(--amber)}
+.actions.center{justify-content:center}
+.card > h2::before{content:"\25C6";color:var(--green);font-size:9px;margin-right:9px;
+  vertical-align:2px;opacity:.85}
+
+/* ---------- traits ---------- */
+.trait b{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.trait b .marks{display:inline-flex;gap:4px;margin:0}
+.marks i{width:9px;height:9px;border-radius:50%;border:1.5px solid var(--green);opacity:.45}
+.marks i.on{background:var(--green);opacity:1;box-shadow:0 0 8px rgba(var(--g),.65)}
+
+/* ---------- dealer panel ---------- */
+.stage > .card{align-self:start}
+.housemove{margin-top:0}
+.housemove .hm-head{display:flex;gap:13px;align-items:center}
+.housemove .hm-head b{font-size:13.5px;margin-bottom:0}
+.housemove .hm-head .mini{margin-top:5px}
+table.tbl td.acts{white-space:nowrap;text-align:right}
+table.tbl td.acts .btn{padding:4px 9px;font-size:12.5px}
+table.tbl .st{font-family:var(--cond);text-transform:uppercase;letter-spacing:.1em;
+  font-size:10.5px;color:var(--muted);margin-left:6px}
+
+/* ---------- the reveal, staged ---------- */
+.rev-row{animation:land .42s cubic-bezier(.2,.9,.25,1.08) backwards;transition:border-color .3s,background .3s}
+@keyframes land{from{opacity:0;transform:translateY(16px) scale(.97)}to{opacity:1;transform:none}}
+.rev-row .nm{flex:1;min-width:0}
+.rev-row .mini{margin-top:0;justify-content:flex-end}
+.reveal-hands.done .rev-row.lost{border-color:var(--magenta);background:rgba(var(--m),.13)}
+.die.lit{animation:lightup .36s ease-out backwards}
+@keyframes lightup{
+  from{box-shadow:inset 0 -4px 0 rgba(0,0,0,.16), 0 0 0 0 rgba(var(--a),0);transform:none}
+  55%{transform:scale(1.22)}}
+.rc-n{display:inline-block}
+.rc-n.bump{animation:bump .2s ease-out}
+@keyframes bump{from{transform:scale(1.28)}to{transform:none}}
+.reveal-verdict{opacity:0;transform:translateY(6px);transition:opacity .4s, transform .4s}
+.reveal-verdict.on{opacity:1;transform:none}
+.reveal-h .call{display:inline-flex;align-items:center;gap:7px;color:var(--green);
+  vertical-align:middle;white-space:nowrap}
+.reveal-box{animation:land .32s ease-out backwards}
+
+/* ---------- the end of the game ---------- */
+.fin-faces{display:flex;justify-content:center;gap:16px;margin:16px 0 8px}
+.fin-faces .av{animation:land .6s .15s cubic-bezier(.2,.9,.25,1.2) backwards}
+.fin-faces .av:not(.framed){box-shadow:0 0 0 3px var(--amber), 0 0 44px rgba(var(--a),.6)}
+.fin-h{font-size:clamp(28px,7vw,46px);color:var(--amber);text-shadow:0 0 34px rgba(var(--a),.5);margin-bottom:10px}
+.reveal-box.finale{border-color:rgba(var(--a),.6);box-shadow:0 0 80px -20px rgba(var(--a),.55), var(--shadow)}
+.reveal-box.finale.flip{border-color:var(--magenta);box-shadow:0 0 80px -16px rgba(var(--m),.7), var(--shadow);
+  animation:tableflip .7s cubic-bezier(.3,1.4,.5,1) backwards}
+.reveal-box.finale.flip .fin-h{color:var(--magenta);text-shadow:0 0 34px rgba(var(--m),.7)}
+@keyframes tableflip{0%{opacity:0;transform:rotate(-14deg) translateY(60px) scale(.8)}60%{transform:rotate(3deg)}100%{opacity:1;transform:none}}
+
+/* ---------- the crooked moon over the home screen ---------- */
+.moon{position:absolute;width:36%;right:-15%;top:-9%;z-index:0;transform:rotate(24deg);
+  filter:drop-shadow(0 0 12px rgba(243,228,180,.6)) drop-shadow(0 0 46px rgba(243,228,180,.3));
+  animation:moonglow 9s ease-in-out infinite}
+@keyframes moonglow{0%,100%{opacity:.92}50%{opacity:.7}}
+.fan{position:relative;z-index:1}
+.hero-dice{z-index:2}
+
+/* ---------- poker: who is who, and cards that move ---------- */
+.pk-who{display:flex;align-items:center;gap:11px}
+.pc.dealt{animation:dealin .44s cubic-bezier(.2,.8,.3,1.06) backwards}
+@keyframes dealin{from{opacity:0;transform:translate(-46px,-70px) rotate(-20deg) scale(.8)}to{opacity:1;transform:none}}
+.pc.turn{animation:turnover .5s ease-out backwards}
+@keyframes turnover{0%{transform:rotateY(92deg) scale(1.06);filter:brightness(.4)}100%{transform:none;filter:none}}
+.pc.shadein{animation:shadein 1.1s ease-out backwards}
+@keyframes shadein{0%,45%{filter:brightness(0);transform:scale(.95)}100%{filter:none;transform:none}}
+.pk-rev-row{animation:land .42s cubic-bezier(.2,.9,.25,1.08) backwards}
+.pk-rev-row .who{display:flex;align-items:center;gap:9px}
+.pk-rev-row .rk{opacity:0;transition:opacity .4s}
+.pk-rev.done .rk{opacity:1}
+.pk-rev-row.win{border-color:var(--line-soft);box-shadow:none;transition:border-color .4s, box-shadow .4s}
+.pk-rev.done .pk-rev-row.win{border-color:rgba(var(--a),.7);box-shadow:0 0 0 1px rgba(var(--a),.25)}
+.pc.dead{box-shadow:inset 0 0 0 1px rgba(0,0,0,.35), 0 9px 16px -8px rgba(0,0,0,.95);transition:box-shadow .5s}
+.pk-rev.done .pc.dead{box-shadow:inset 0 0 0 1px rgba(0,0,0,.35), 0 0 0 2px var(--magenta), 0 0 22px rgba(var(--m),.7)}
+.reveal-box.dead{border-color:var(--line);box-shadow:var(--shadow);transition:border-color .6s, box-shadow .6s}
+.reveal-box.dead.done{border-color:var(--magenta);box-shadow:0 0 70px -12px rgba(var(--m),.7), var(--shadow)}
+.reveal-box.dead .reveal-h{color:var(--bone);text-shadow:none;transition:color .6s, text-shadow .6s}
+.reveal-box.dead.done .reveal-h{color:var(--magenta);text-shadow:0 0 30px rgba(var(--m),.75)}
+
+/* ---------- small screens: five dice and six faces each fit one row ---------- */
+@media(max-width:430px){
+  .dice{gap:8px}
+  .dice .die{width:50px;height:50px;padding:8px;border-radius:11px}
+  .faces{gap:5px}
+  .faces button{width:40px;height:40px;padding:4px}
+  .bidrow{padding:11px}
+}
+.reveal-box,.log,.scroll{scrollbar-width:thin;scrollbar-color:var(--line) transparent}
+.rev-row{padding:7px 12px}
+.reveal-hands{gap:8px;margin-bottom:16px}
+.bar-actions{flex-wrap:wrap;justify-content:flex-end}
+.tablelink{font-family:var(--cond);font-weight:700;letter-spacing:.2em;font-size:14px;color:var(--green);cursor:pointer;
+  background:rgba(var(--g),.08);border:1px solid rgba(var(--g),.45);border-radius:8px;padding:4px 8px 4px 11px;margin-left:4px}
+.tablelink:hover{background:rgba(var(--g),.18)}

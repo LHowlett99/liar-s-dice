@@ -6,10 +6,11 @@
    =========================================================== */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getDatabase, ref, onValue, set, get }
+import { getDatabase, ref, onValue, set, get, runTransaction }
   from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 import { firebaseConfig } from "./firebase-config.js";
-import { sfx } from "./sfx.js";
+import { sfx } from "./sfx.js?v=4";
+import { avatarHTML, dealerOf, markDealer, dealerCodes } from "./cast.js?v=4";
 
 /* ---------------- constants ---------------- */
 
@@ -34,15 +35,17 @@ const LS = { room:"dmh.room", seat:"dmh.seat", dealer:"dmh.dealer" };
 
 /* ---------------- state ---------------- */
 
-let db = null, roomRef = null, room = null, roomCode = null;
+let db = null, roomRef = null, room = null, roomCode = null, unsub = null;
 let mySeat = null, isDealer = false, castMode = false;
-let draft = { count:1, face:2 }, armed = null, selDie = -1;
-let lastRound = -1, seenReveal = null, lastSnap = null;
+let draft = { count:1, face:2 }, armed = null, selDie = -1, daringSpent = false;
+let lastRound = -1, seenReveal = null, seenFinale = null, lastSnap = null;
 
 
 function sfxDiff(prev, cur){
   if (!prev || !cur) return;
   const traitsLeft = r => (r.seats || []).reduce((a, s) => a + Object.keys(s.traits || {}).reduce((b, k) => b + (s.traits[k].cap - s.traits[k].used), 0), 0);
+  const claimed = r => (r.seats || []).filter(s => s.kind === "pc" && s.claimed).length;
+  if (cur.phase === "lobby"){ if (claimed(cur) > claimed(prev)) sfx.sit(); return; }
   if (cur.phase === "over" && prev.phase !== "over") return sfx.over();
   if (cur.reveal && (!prev.reveal || prev.reveal.id !== cur.reveal.id)) return sfx.reveal();
   if (cur.phase === "bidding" && ((cur.round || 0) > (prev.round || 0) || prev.phase === "lobby")){
@@ -73,8 +76,13 @@ function toast(msg){
   clearTimeout(toast._t);
   toast._t = setTimeout(() => t.classList.remove("on"), 2600);
 }
-function initials(name){
-  return name.split(/\s+/).map(w => w[0]).join("").slice(0,2).toUpperCase();
+/* when the standing bid moves, start everyone's stepper on the smallest raise */
+function syncDraft(prev, cur){
+  const pb = prev && prev.bid, cb = cur.bid;
+  if (!cb){ if (pb || !prev) draft = { count:1, face:draft.face }; return; }
+  if (pb && pb.count === cb.count && pb.face === cb.face && pb.by === cb.by) return;
+  const pot = (cur.seats || []).filter(s => !s.out).reduce((a, s) => a + (s.dice ? s.dice.length : 0), 0);
+  draft = cb.count < pot ? { count:cb.count + 1, face:cb.face } : { count:cb.count, face:Math.min(6, cb.face + 1) };
 }
 function dieHTML(v, cls = ""){
   const pips = (PIPS[v] || []).map(p => `<i class="pip p${p}"></i>`).join("");
@@ -89,10 +97,15 @@ const seatById = id => room ? (room.seats || []).find(s => s.id === id) : null;
 const liveSeats = () => room ? (room.seats || []).filter(s => !s.out) : [];
 const potCount  = () => liveSeats().reduce((a,s) => a + (s.dice ? s.dice.length : 0), 0);
 
+/* the next seat still in the game, going round from fromId (which may itself be out) */
 function nextSeat(fromId){
-  const ls = liveSeats();
-  const i = ls.findIndex(s => s.id === fromId);
-  return ls.length ? ls[(i < 0 ? 0 : (i+1) % ls.length)].id : null;
+  const all = room.seats || [];
+  const i = all.findIndex(s => s.id === fromId);
+  for (let k = 1; k <= all.length; k++){
+    const s = all[(i + k) % all.length];
+    if (s && !s.out) return s.id;
+  }
+  return null;
 }
 function traitsFor(name){
   const grant = PROFICIENCIES[name] || {};
@@ -198,11 +211,17 @@ function nextRound(){
     logAdd(`<b>${esc(loser.name)}</b> is out.`);
   }
   const left = liveSeats();
-  if (left.length <= 1){
+  const pcs = left.filter(s => s.kind === "pc"), npcs = left.filter(s => s.kind === "npc");
+  let end = null;
+  if (room.opponent === "sinner" && !npcs.length) end = { kind:"flip", who:[loser] };   // he flips the table and forfeits
+  else if (!pcs.length && npcs.length) end = { kind:"house", who:npcs };                 // nobody left to play the house
+  else if (left.length <= 1) end = { kind:"last", who:left };
+  if (end){
     room.phase = "over";
-    room.winner = left.length ? left[0].id : null;
-    if (room.winner) logAdd(`<b>${esc(seatById(room.winner).name)}</b> takes the table.`);
+    room.winner = end.kind !== "flip" && end.who.length ? end.who[0].id : null;
+    room.ending = { kind:end.kind, names:end.who.map(s => s.name) };
     room.reveal = null;
+    logAdd(`<b>${endingText().title}.</b>`);
     return save();
   }
   room.opener = loser.out ? nextSeat(loser.id) : loser.id;
@@ -210,11 +229,33 @@ function nextRound(){
   dealRound();
 }
 
+/* how the game ended, in words (escaped, safe to drop into HTML) */
+function endingText(){
+  const e = room.ending || {};
+  let names = (e.names || []).map(esc);
+  if (!names.length && room.winner && seatById(room.winner)) names = [esc(seatById(room.winner).name)];
+  if (e.kind === "flip") return {
+    title:`${names[0] || "The house"} flips the table`,
+    line:"He roars, sends the whole table over, and forfeits. The game is yours." };
+  if (!names.length) return { title:"Nobody left standing", line:"" };
+  const who = names.length > 1 ? names.slice(0, -1).join(", ") + " and " + names[names.length - 1] : names[0];
+  return {
+    title:`${who} ${names.length > 1 ? "take" : "takes"} the table`,
+    line:e.kind === "house" ? "The house does not lose." : "Last one holding dice." };
+}
+
 /* ---------------- traits ---------------- */
+
+/* Poker Face answers a challenge, so it also works while the hands are showing;
+   everything else only makes sense while the round is still being bid */
+function traitOpen(id){
+  return room.phase === "bidding" || (id === "poker" && room.phase === "reveal");
+}
 
 function useTrait(t){
   const s = mySeat && seatById(mySeat);
-  if (!s || s.out || traitLeft(s, t.id) <= 0) return;
+  if (armed === t.id){ armed = null; selDie = -1; return render(); }    // tap again to put it down
+  if (!s || s.out || traitLeft(s, t.id) <= 0 || !traitOpen(t.id)) return;
 
   if (t.id === "fated"){
     s.dice = rollN(s.dice.length); spendTrait(s, t.id);
@@ -227,7 +268,7 @@ function useTrait(t){
     return save();
   }
   armed = (armed === t.id) ? null : t.id;
-  selDie = -1;
+  selDie = -1; daringSpent = false;
   if (armed === "hardread") toast("Tap the seat you want to read.");
   if (armed === "sly")      toast("Tap the seat you want to show.");
   if (armed === "deft")     toast("Tap one of your dice, then pick its new face.");
@@ -237,7 +278,7 @@ function useTrait(t){
 
 function trainTraitOn(targetId){
   const me = seatById(mySeat), target = seatById(targetId);
-  if (!me || !target || target.id === me.id) return;
+  if (!me || !target || target.id === me.id || target.out) return;
   room.reveals = room.reveals || [];
   if (armed === "hardread"){
     room.reveals.push({ to:me.id, from:target.id, dice:(target.dice||[]).slice(), round:room.round });
@@ -255,6 +296,10 @@ function setDie(i, val){
   if (armed === "deft"){
     spendTrait(me, "deft"); armed = null;
     logAdd(`<b>${esc(me.name)}</b> uses <span class="hi">Deft Hands</span>.`);
+  } else if (armed === "daring" && !daringSpent){
+    // spent on the first die changed, so backing out afterwards is not a free cheat
+    spendTrait(me, "daring"); daringSpent = true;
+    logAdd(`<b>${esc(me.name)}</b> uses <span class="hi">Daring Dicer</span>.`);
   }
   selDie = -1; save();
 }
@@ -293,7 +338,7 @@ function renderLobby(){
     const status = s.kind === "npc" ? "the house" : (mine ? "that is you" : (s.claimed ? "taken" : "free"));
     return `<li><button class="${cls}" data-sit="${s.id}"
       ${(s.kind === "npc" || (s.claimed && !mine)) ? "disabled" : ""}>
-      <span class="av${s.kind === "npc" ? " npc" : ""}">${esc(initials(s.name))}</span>
+      ${avatarHTML(s.name, s.kind === "npc" ? "npc" : "")}
       <span><span class="nm">${esc(s.name)}</span><span class="st">${status}</span></span>
     </button></li>`;
   }).join("");
@@ -303,14 +348,28 @@ function renderLobby(){
 
   $("lobbyHint").textContent = mySeat
     ? "You are seated. The dealer starts when everyone is in."
-    : "Tap an empty chair to sit down.";
+    : isDealer ? "Players tap their own name. You stay standing: the dealer plays the house."
+               : "Tap your name to sit down.";
 
   if (isDealer){
     const names = room.seats.filter(s => s.kind === "pc").map(s => s.name).join("\n");
     if ($("lobbyNames") !== document.activeElement) $("lobbyNames").value = names;
     $("lobbyOpp").value = room.opponent;
+    $("btnResume").hidden = !room.back;
+    $("btnDeal").textContent = room.back ? "Deal a fresh game" : "Deal the first round";
     updatePool();
   }
+}
+/* the dealer edits the seat list: keep whoever is already sat down, by name */
+function syncSeatNames(){
+  const names = $("lobbyNames").value.split("\n").map(s => s.trim()).filter(Boolean);
+  const old = room.seats.filter(s => s.kind === "pc");
+  if (!names.length || names.join("\n") === old.map(s => s.name).join("\n")) return;
+  const pcs = names.map(n => old.find(s => s.name === n) ||
+    { id:uid(), name:n, kind:"pc", dice:[], count:5, out:false, traits:traitsFor(n), claimed:false });
+  room.seats = pcs.concat(npcSeatsFor(room.opponent, pcs.length));
+  room.back = null; room.round = 0;
+  save();
 }
 function updatePool(){
   const n = $("lobbyNames").value.split("\n").map(s => s.trim()).filter(Boolean).length;
@@ -325,32 +384,44 @@ function updatePool(){
 /* ---- table ---- */
 function renderTable(){
   const me = mySeat && seatById(mySeat);
+  const solo = isDealer && !me;          // the dealer, standing: they play the house
   $("btnSeatSwap").hidden = !isDealer;
+  $("btnMenu").hidden = !isDealer;
+  $("btnCast").hidden = !(me || isDealer);
   $("hRound").textContent = room.round;
   $("hCode").textContent = roomCode;
   $("potN").textContent = potCount();
+
+  // a standing dealer has no hand, so the dealer panel takes its place beside the felt
+  const dc = $("dealerCard"), stage = $("stage");
+  $("handPanel").hidden = solo;
+  $("traitCard").hidden = !me;
+  if (solo && dc.parentNode !== stage) stage.appendChild(dc);
+  else if (!solo && dc.parentNode === stage) stage.parentNode.insertBefore(dc, $("logCard"));
 
   // turn line
   const turn = seatById(room.turn);
   let tl = "";
   if (room.phase === "over"){
-    tl = room.winner ? `<span class="you">${esc(seatById(room.winner).name)}</span> takes the table` : "Nobody left standing";
+    tl = `<span class="you">${endingText().title}</span>`;
   } else if (room.phase === "reveal"){
     tl = "Hands on the table";
   } else if (turn){
-    tl = (turn.id === mySeat) ? `<span class="you">Your move</span>` : `Waiting on ${esc(turn.name)}`;
+    tl = (turn.id === mySeat) ? `<span class="you">Your move</span>`
+       : (solo && turn.kind === "npc") ? `<span class="you">${esc(turn.name)}'s move</span>`
+       : `Waiting on ${esc(turn.name)}`;
   }
   $("hTurn").innerHTML = tl;
 
   // bid card
   if (room.bid){
-    $("bidV").textContent = `${room.bid.count} × ${room.bid.face}`;
+    $("bidV").innerHTML = `${room.bid.count}<span class="x">&times;</span>${dieHTML(room.bid.face, "sm")}`;
     $("bidV").classList.remove("none");
     const b = seatById(room.bid.by);
     $("bidBy").textContent = b ? `bid by ${b.name}` : "";
   } else {
     $("bidV").textContent = "—"; $("bidV").classList.add("none");
-    $("bidBy").textContent = "nobody has opened";
+    $("bidBy").textContent = room.phase === "over" ? "the game is over" : "nobody has opened";
   }
 
   renderSeats();
@@ -359,43 +430,54 @@ function renderTable(){
   renderDealer();
   renderLog();
   maybeShowReveal();
+  maybeShowFinale();
 }
 
 function renderSeats(){
   const openHands = room.phase === "over";
+  const picking = armed === "hardread" || armed === "sly";
   $("seats").innerHTML = room.seats.map(s => {
     const mine = s.id === mySeat && !castMode;
-    const cls = ["seat", s.out ? "out" : "", (room.turn === s.id && room.phase === "bidding") ? "turn" : "", mine ? "mine" : ""].join(" ");
+    const target = picking && s.id !== mySeat && !s.out;
+    const cls = ["seat", s.out ? "out" : "", (room.turn === s.id && room.phase === "bidding") ? "turn" : "",
+                 mine ? "mine" : "", target ? "target" : ""].join(" ");
     const showReal = (mine || openHands || (isDealer && !castMode)) && (s.dice||[]).length;
     const dice = showReal ? handHTML(s.dice, "sm")
                : ((s.dice||[]).length ? hiddenHTML(s.dice.length) : "");
+    const says = (room.bid && room.bid.by === s.id && room.phase !== "over")
+      ? `<span class="says">${room.bid.count} &times; ${room.bid.face}</span>` : "";
+    const left = traitsLeftTotal(s);
+    const role = s.out ? "out of the game" : (s.kind === "npc" ? "the house" : (s.id === mySeat ? "you" : "player"));
     return `<li class="${cls}" data-seat="${s.id}">
-      <span class="av${s.kind === "npc" ? " npc" : ""}">${esc(initials(s.name))}</span>
-      <span><span class="nm">${esc(s.name)}</span>
-        <span class="st">${s.out ? "out" : (s.kind === "npc" ? "the house" : "player")} · ${traitsLeftTotal(s)} trait${traitsLeftTotal(s) === 1 ? "" : "s"}</span>
+      ${avatarHTML(s.name, s.kind === "npc" ? "npc" : "")}
+      <span class="who"><span class="nm">${esc(s.name)}${says}</span>
+        <span class="st">${role}${left ? ` · ${left} trait${left === 1 ? "" : "s"}` : ""}</span>
         ${dice ? `<span class="mini">${dice}</span>` : ""}</span>
       <span class="cnt">${s.count}<small>dice</small></span>
     </li>`;
   }).join("");
 
-  if (armed === "hardread" || armed === "sly"){
-    $("seats").querySelectorAll("[data-seat]").forEach(node => {
-      if (node.dataset.seat === mySeat) return;
-      node.style.cursor = "pointer";
-      node.style.borderColor = "var(--green)";
-      node.onclick = () => trainTraitOn(node.dataset.seat);
-    });
-  }
+  $("seats").querySelectorAll(".seat.target").forEach(node => {
+    node.onclick = () => trainTraitOn(node.dataset.seat);
+  });
 }
 
 function renderHand(me){
   const dice = $("dice"), extra = $("handExtra"), ctl = $("controls");
+  $("handPanel").classList.toggle("myturn", !!me && !me.out && room.phase === "bidding" && room.turn === me.id);
 
   if (!me){
+    // a watcher; if a chair is still empty they can take it without the dealer resetting anything
+    const free = room.seats.filter(s => s.kind === "pc" && !s.claimed && !s.out);
     $("handWho").textContent = "You are watching";
     $("handMeta").textContent = "";
     dice.innerHTML = hiddenHTML(5);
-    extra.innerHTML = `<p class="hint" style="margin-top:12px">You have no seat at this table.</p>`;
+    extra.innerHTML = free.length
+      ? `<p class="hint" style="margin-top:12px">You have no seat yet. If one of these is you, sit down:</p>
+         <div class="actions" style="margin-top:10px">` +
+          free.map(s => `<button class="btn sm" data-sit="${s.id}">${esc(s.name)}</button>`).join("") + `</div>`
+      : `<p class="hint" style="margin-top:12px">Every chair is taken, so you are watching this one.</p>`;
+    extra.querySelectorAll("[data-sit]").forEach(b => { b.onclick = () => claimSeat(b.dataset.sit); });
     ctl.innerHTML = "";
     return;
   }
@@ -443,11 +525,7 @@ function renderHand(me){
     b.onclick = () => setDie(selDie, +b.dataset.new);
   });
   const dd = $("doneDaring");
-  if (dd) dd.onclick = () => {
-    const s = seatById(mySeat); spendTrait(s, "daring");
-    logAdd(`<b>${esc(s.name)}</b> uses <span class="hi">Daring Dicer</span>.`);
-    armed = null; selDie = -1; save();
-  };
+  if (dd) dd.onclick = () => { armed = null; selDie = -1; daringSpent = false; render(); };
 
   // controls
   ctl.innerHTML = buildControls(me);
@@ -456,7 +534,8 @@ function renderHand(me){
 
 function buildControls(me){
   if (room.phase === "over"){
-    return isDealer ? `<div class="actions"><button class="btn primary" id="cNew">New table</button></div>` : "";
+    return isDealer ? `<div class="actions"><button class="btn primary" id="cNew">New table</button></div>`
+                    : `<p class="hint">That is the game.</p>`;
   }
   if (room.phase === "reveal"){
     return isDealer ? `<div class="actions"><button class="btn primary" id="cNext">Next round</button></div>`
@@ -504,22 +583,24 @@ function wireControls(){
   document.querySelectorAll("[data-face]").forEach(b => {
     b.onclick = () => { draft.face = +b.dataset.face; render(); };
   });
-  on("cBid", () => {
-    if (room.bid){
-      const ok = draft.count > room.bid.count ||
-                 (draft.count === room.bid.count && draft.face > room.bid.face);
-      if (!ok) return toast("That does not raise it. Go higher on the count, the face, or both.");
-    }
-    placeBid(draft.count, draft.face);
-  });
+  on("cBid", () => { if (raises()) placeBid(draft.count, draft.face); });
   on("cChal", doChallenge);
   on("cNext", nextRound);
-  on("cRedeal", () => {
-    room.seats.forEach(s => { if (!s.out) s.dice = rollN(s.count); });
-    logAdd("The dealer redeals the round."); lastRound = -1; save();
-  });
-  on("cNew",  () => { room.phase = "lobby"; room.round = 0; save(); });
-  on("cNewD", () => { room.phase = "lobby"; room.round = 0; save(); });
+  on("cRedeal", redeal);
+  on("cNew",  newTable);
+  on("cNewD", newTable);
+}
+function redeal(){
+  room.seats.forEach(s => { if (!s.out) s.dice = rollN(s.count); });
+  room.reveals = [];
+  logAdd("The dealer redeals the round."); lastRound = -1; save();
+}
+function newTable(){ room.phase = "lobby"; room.round = 0; room.back = null; save(); }
+function raises(){
+  if (!room.bid) return true;
+  const ok = draft.count > room.bid.count || (draft.count === room.bid.count && draft.face > room.bid.face);
+  if (!ok) toast("That does not raise it. Go higher on the count, the face, or both.");
+  return ok;
 }
 
 function renderTraits(me){
@@ -535,9 +616,11 @@ function renderTraits(me){
   }
   wrap.innerHTML = granted.map(t => {
     const remain = traitLeft(me, t.id), cap = traitCap(me, t.id);
-    const spent = remain <= 0;
-    return `<button class="trait ${armed === t.id ? "armed" : ""}" data-trait="${t.id}" ${spent ? "disabled" : ""}>
-      <b>${t.name}</b><span>${t.skill} · ${t.desc} · ${remain}/${cap} left</span></button>`;
+    const spent = remain <= 0 || !traitOpen(t.id);
+    const marks = Array.from({ length:cap }, (_, i) => `<i class="${i < remain ? "on" : ""}"></i>`).join("");
+    return `<button class="trait ${armed === t.id ? "armed" : ""}" data-trait="${t.id}" ${spent && armed !== t.id ? "disabled" : ""}>
+      <b>${t.name}<span class="marks" title="${remain} of ${cap} left">${marks}</span></b>
+      <span>${t.skill} · ${t.desc}</span></button>`;
   }).join("");
   wrap.querySelectorAll("[data-trait]").forEach(b => {
     b.onclick = () => useTrait(TRAITS.find(t => t.id === b.dataset.trait));
@@ -547,45 +630,17 @@ function renderTraits(me){
 function renderDealer(){
   $("dealerCard").hidden = !isDealer;
   if (!isDealer) return;
-  let h = `<div class="scroll"><table class="tbl"><thead><tr>
-    <th>Seat</th><th>Hand</th><th>Traits</th><th>Whisper</th></tr></thead><tbody>` +
-    room.seats.map(s => `<tr>
-      <td>${esc(s.name)}${s.out ? " <span class='st'>out</span>" : ""}</td>
-      <td><span class="mini">${(s.dice||[]).length ? handHTML(s.dice,"sm") : "—"}</span></td>
-      <td class="n">${traitsLeftTotal(s)}</td>
-      <td>${(s.dice||[]).length && !s.out ? `<button class="btn ghost sm" data-wh="${s.id}">Copy</button>` : "—"}</td>
-    </tr>`).join("") + `</tbody></table></div>`;
-
-  h += `<div class="scroll" style="margin-top:12px"><table class="tbl"><thead><tr><th>Face</th>` +
-    [1,2,3,4,5,6].map(f => `<th style="text-align:center">${f}</th>`).join("") +
-    `</tr></thead><tbody><tr><td>On the table, ones wild</td>` +
-    [1,2,3,4,5,6].map(f => `<td class="n">${tallyFace(f)}</td>`).join("") +
-    `</tr></tbody></table></div>`;
-
-  if (room.pokerFace){
-    const pf = seatById(room.pokerFace.by);
-    h += `<div class="note mag"><b>Poker Face — ${esc(pf ? pf.name : "?")}</b>
-      Charisma (Deception) against DC 15 or the challenger's Wisdom score, whichever is higher.
-      On a success the challenge is withdrawn.
-      <div class="actions" style="margin-top:9px">
-        <button class="btn primary sm" id="pfWin">It worked</button>
-        <button class="btn ghost sm" id="pfLose">It failed</button></div></div>`;
-  }
-  h += room.opponent === "sinner"
-    ? `<div class="note mag"><b>Overweening Pride</b>Any creature can spend a Bonus Action to insult his record
-        as a pirate captain. DC 15 Wisdom or he takes 10 Psychic and has Disadvantage against everyone but
-        the speaker. The moment he is eliminated he roars, flips the table and forfeits.</div>`
-    : room.opponent === "test"
-      ? `<div class="note green"><b>Test table</b>One house seat. Bid and challenge for it from this panel on its turn.</div>`
-      : `<div class="note green"><b>You know both their hands</b>Vander and Lyla signal each other under the table.
-        Play them as a pair quietly working together, and let it show once or twice.</div>`;
-
   const turnSeat = seatById(room.turn);
   const housesTurn = room.phase === "bidding" && turnSeat && turnSeat.kind === "npc";
+  let h = "";
+
+  /* -- first, whatever is waiting on the dealer right now -- */
   if (housesTurn){
-    h += `<div class="note mag" style="margin-top:12px">
-      <b>${esc(turnSeat.name)}'s move</b>
-      <div class="bidrow" style="margin-top:8px">
+    h += `<div class="note mag housemove">
+      <div class="hm-head">${avatarHTML(turnSeat.name, "npc")}
+        <div><b>${esc(turnSeat.name)}'s move</b>
+        <span class="mini">${castMode ? hiddenHTML((turnSeat.dice||[]).length) : handHTML(turnSeat.dice || [], "sm")}</span></div></div>
+      <div class="bidrow" style="margin-top:10px">
         <div class="field" style="margin:0">
           <label>How many</label>
           <div class="stepper">
@@ -601,26 +656,70 @@ function renderDealer(){
           `</div>
         </div>
       </div>
-      <div class="actions" style="margin-top:8px">
+      <div class="actions" style="margin-top:10px">
         <button class="btn primary" id="hBid">Bid ${draft.count} &times; ${draft.face}</button>
         ${room.bid ? `<button class="btn danger" id="hChal">Challenge</button>` : ""}
       </div>
     </div>`;
+  } else if (room.phase === "bidding" && turnSeat){
+    h += `<p class="hint">Waiting on <b style="color:var(--bone)">${esc(turnSeat.name)}</b>. The house's controls appear here on its turn.</p>`;
+  }
+
+  if (room.pokerFace){
+    const pf = seatById(room.pokerFace.by);
+    h += `<div class="note mag"><b>Poker Face — ${esc(pf ? pf.name : "?")}</b>
+      Charisma (Deception) against DC 15 or the challenger's Wisdom score, whichever is higher.
+      On a success the challenge is withdrawn.
+      <div class="actions" style="margin-top:9px">
+        <button class="btn primary sm" id="pfWin">It worked</button>
+        <button class="btn ghost sm" id="pfLose">It failed</button></div></div>`;
   }
 
   if (!mySeat){
     if (room.phase === "reveal"){
-      h += `<div class="actions" style="margin-top:12px"><button class="btn primary" id="dNext">Next round</button></div>`;
+      h += `<div class="actions" style="margin-top:12px"><button class="btn primary" id="dNext">Next round</button>
+        <button class="btn ghost" id="dShow">Show the hands again</button></div>`;
     } else if (room.phase === "over"){
       h += `<div class="actions" style="margin-top:12px"><button class="btn primary" id="dNew">New table</button></div>`;
-    } else if (room.phase === "bidding"){
-      h += `<div class="actions" style="margin-top:12px;border-top:1px solid var(--line-soft);padding-top:12px">
-        <button class="btn ghost sm" id="dRedeal">Redeal round</button>
-        <button class="btn ghost sm" id="dNewT">New table</button></div>`;
     }
   }
 
+  /* -- then the whole table at a glance -- */
+  h += `<div class="scroll" style="margin-top:14px"><table class="tbl"><thead><tr>
+    <th>Seat</th><th>Hand</th><th>Traits</th><th></th></tr></thead><tbody>` +
+    room.seats.map(s => `<tr>
+      <td>${esc(s.name)}${s.out ? " <span class='st'>out</span>" : (s.kind === "pc" && !s.claimed ? " <span class='st'>empty chair</span>" : "")}</td>
+      <td><span class="mini">${(s.dice||[]).length ? (castMode ? hiddenHTML(s.dice.length) : handHTML(s.dice,"sm")) : "—"}</span></td>
+      <td class="n">${traitsLeftTotal(s)}</td>
+      <td class="acts">${(s.dice||[]).length && !s.out ? `<button class="btn ghost sm" data-wh="${s.id}" title="Copy this hand to paste into a private message">Copy</button>` : ""}
+        ${s.kind === "pc" && s.claimed ? `<button class="btn ghost sm" data-free="${s.id}" title="Let another device take this chair">Free</button>` : ""}</td>
+    </tr>`).join("") + `</tbody></table></div>`;
+
+  if (room.phase !== "over"){
+    h += `<div class="scroll" style="margin-top:12px"><table class="tbl"><thead><tr><th>Face</th>` +
+      [1,2,3,4,5,6].map(f => `<th style="text-align:center">${f}</th>`).join("") +
+      `</tr></thead><tbody><tr><td>On the table, ones wild</td>` +
+      [1,2,3,4,5,6].map(f => `<td class="n">${castMode ? "·" : tallyFace(f)}</td>`).join("") +
+      `</tr></tbody></table></div>`;
+  }
+
+  h += room.opponent === "sinner"
+    ? `<div class="note mag"><b>Overweening Pride</b>Any creature can spend a Bonus Action to insult his record
+        as a pirate captain. DC 15 Wisdom or he takes 10 Psychic and has Disadvantage against everyone but
+        the speaker. The moment he is eliminated he roars, flips the table and forfeits.</div>`
+    : room.opponent === "test"
+      ? `<div class="note green"><b>Test table</b>One house seat. Bid and challenge for it from this panel on its turn.</div>`
+      : `<div class="note green"><b>You know both their hands</b>Vander and Lyla signal each other under the table.
+        Play them as a pair quietly working together, and let it show once or twice.</div>`;
+
+  if (!mySeat && room.phase === "bidding"){
+    h += `<div class="actions" style="margin-top:12px;border-top:1px solid var(--line-soft);padding-top:12px">
+      <button class="btn ghost sm" id="dRedeal">Redeal round</button>
+      <button class="btn ghost sm" id="dNewT">New table</button></div>`;
+  }
+
   $("dealerBody").innerHTML = h;
+  const on = (id, fn) => { const el = $(id); if (el) el.onclick = fn; };
 
   const whisper = s => `${s.name} — your hand: ${s.dice.join("  ")}   (ones are wild). ` +
     `${traitsLeftTotal(s)} trait use${traitsLeftTotal(s) === 1 ? "" : "s"} left.`;
@@ -631,43 +730,35 @@ function renderDealer(){
       catch { toast(whisper(s)); }
     };
   });
-  if (housesTurn){
-    const hMinus = $("hMinus"), hPlus = $("hPlus"), hBid = $("hBid"), hChal = $("hChal");
-    if (hMinus) hMinus.onclick = () => { draft.count = Math.max(1, draft.count - 1); render(); };
-    if (hPlus)  hPlus.onclick  = () => { draft.count = Math.min(potCount(), draft.count + 1); render(); };
-    $("dealerBody").querySelectorAll("[data-hface]").forEach(b => {
-      b.onclick = () => { draft.face = +b.dataset.hface; render(); };
-    });
-    if (hBid) hBid.onclick = () => {
-      if (room.bid){
-        const ok = draft.count > room.bid.count ||
-                   (draft.count === room.bid.count && draft.face > room.bid.face);
-        if (!ok) return toast("That does not raise it. Go higher on the count, the face, or both.");
-      }
-      placeBid(draft.count, draft.face);
+  $("dealerBody").querySelectorAll("[data-free]").forEach(b => {
+    b.onclick = () => {
+      const s = seatById(b.dataset.free); if (!s) return;
+      s.claimed = false; save();
+      toast(`${s.name}'s chair is free. They can sit back down from their own screen.`);
     };
-    if (hChal) hChal.onclick = doChallenge;
-  }
+  });
 
-  if (!mySeat){
-    const dNext = $("dNext"), dNew = $("dNew"), dRedeal = $("dRedeal"), dNewT = $("dNewT");
-    if (dNext) dNext.onclick = nextRound;
-    if (dNew) dNew.onclick = () => { room.phase = "lobby"; room.round = 0; save(); };
-    if (dRedeal) dRedeal.onclick = () => {
-      room.seats.forEach(s => { if (!s.out) s.dice = rollN(s.count); });
-      logAdd("The dealer redeals the round."); lastRound = -1; save();
-    };
-    if (dNewT) dNewT.onclick = () => { room.phase = "lobby"; room.round = 0; save(); };
-  }
+  on("hMinus", () => { draft.count = Math.max(1, draft.count - 1); render(); });
+  on("hPlus",  () => { draft.count = Math.min(potCount(), draft.count + 1); render(); });
+  $("dealerBody").querySelectorAll("[data-hface]").forEach(b => {
+    b.onclick = () => { draft.face = +b.dataset.hface; render(); };
+  });
+  on("hBid", () => { if (raises()) placeBid(draft.count, draft.face); });
+  on("hChal", doChallenge);
 
-  const pw = $("pfWin"), pl = $("pfLose");
-  if (pw) pw.onclick = () => {
+  on("dNext", nextRound);
+  on("dShow", () => { seenReveal = null; maybeShowReveal(); });
+  on("dNew", newTable);
+  on("dRedeal", redeal);
+  on("dNewT", newTable);
+
+  on("pfWin", () => {
     room.pokerFace = null; room.reveal = null; room.phase = "bidding";
     logAdd(`The challenge is <span class="hi">withdrawn</span>.`); save();
-  };
-  if (pl) pl.onclick = () => {
+  });
+  on("pfLose", () => {
     room.pokerFace = null; logAdd(`Poker Face <span class="lo">fails</span>.`); save();
-  };
+  });
 }
 
 function renderLog(){
@@ -675,39 +766,75 @@ function renderLog(){
 }
 
 /* ---- the reveal moment ---- */
+let revTimer = null;
 function maybeShowReveal(){
   const r = room.reveal;
-  if (!r || room.phase !== "reveal"){ $("reveal").hidden = true; return; }
+  if (!r || room.phase !== "reveal"){ $("reveal").hidden = true; clearTimeout(revTimer); return; }
   if (seenReveal === r.id) return;
   seenReveal = r.id;
 
   const bidder = seatById(r.bidder), challenger = seatById(r.challenger), loser = seatById(r.loser);
   $("revEyebrow").textContent = "Hands on the table";
   $("revH").innerHTML = `${esc(challenger.name)} calls ${esc(bidder.name)} on
-    <span style="color:var(--green)">${r.need} × ${r.face}</span>`;
+    <span class="call">${r.need} &times; ${dieHTML(r.face, "sm")}</span>`;
 
-  $("revHands").innerHTML = r.hands.map(h => `<div class="rev-row">
+  // the hands land one after another, then the matching dice light up as the count climbs
+  const rows = r.hands.length, lead = 420 + rows * 130;
+  let k = 0;
+  $("revHands").innerHTML = r.hands.map((h, i) => `<div class="rev-row${h.id === r.loser ? " lost" : ""}" style="animation-delay:${i * 130}ms">
+      ${avatarHTML(h.name, "sm" + (seatById(h.id) && seatById(h.id).kind === "npc" ? " npc" : ""))}
       <span class="nm">${esc(h.name)}</span>
-      <span class="mini">${h.dice.map(d =>
-        dieHTML(d, "sm" + ((d === r.face || (d === 1 && r.face !== 1)) ? " match" : ""))).join("")}</span>
+      <span class="mini">${h.dice.map(d => {
+        const m = d === r.face || (d === 1 && r.face !== 1);
+        return dieHTML(d, "sm" + (m ? " match lit" : "")).replace("<div ", `<div ${m ? `style="animation-delay:${lead + (k++) * tickGap(r.got)}ms" ` : ""}`);
+      }).join("")}</span>
     </div>`).join("");
 
   $("revLabel").innerHTML = `showing ${r.face}${r.face === 1 ? "" : "s, ones wild"}`;
   $("revVerdict").innerHTML = r.overbid
     ? `The bid was too high. <span class="lose">${esc(loser.name)}</span> loses a die.`
     : `The bid was good. <span class="lose">${esc(loser.name)}</span> loses a die for calling it.`;
+  $("revVerdict").classList.remove("on"); $("revHands").classList.remove("done");
+  $("revNext").hidden = !isDealer;
   $("reveal").hidden = false;
+  $("reveal").scrollTop = 0;
 
-  // count up to the tally
+  // count up to the tally, one knock per die
   const el = $("revCount"); let n = 0; el.textContent = "0";
+  const done = () => { $("revVerdict").classList.add("on"); $("revHands").classList.add("done"); };
   const step = () => {
-    if (n >= r.got) return;
-    n++; el.textContent = n;
-    setTimeout(step, Math.max(90, 420 / Math.max(1, r.got)));
+    if (seenReveal !== r.id || $("reveal").hidden) return;
+    if (n >= r.got) return done();
+    n++; el.textContent = n; sfx.tick();
+    el.classList.remove("bump"); void el.offsetWidth; el.classList.add("bump");
+    revTimer = setTimeout(step, tickGap(r.got));
   };
-  setTimeout(step, 520);
+  clearTimeout(revTimer);
+  revTimer = setTimeout(step, lead);
 }
+const tickGap = got => Math.max(110, Math.min(260, 1500 / Math.max(1, got)));
 $("revClose").onclick = () => { $("reveal").hidden = true; };
+$("revNext").onclick = () => { if (isDealer && room && room.phase === "reveal") nextRound(); };
+
+/* ---- the end of the game ---- */
+function maybeShowFinale(){
+  if (room.phase !== "over"){ $("finale").hidden = true; return; }
+  const key = roomCode + ":" + room.round + ":" + ((room.ending && room.ending.kind) || "");
+  if (seenFinale === key) return;
+  seenFinale = key;
+  const e = room.ending || {}, t = endingText();
+  const names = (e.names && e.names.length) ? e.names
+    : (room.winner && seatById(room.winner) ? [seatById(room.winner).name] : []);
+  $("finBox").classList.toggle("flip", e.kind === "flip");
+  $("finFaces").innerHTML = names.map(n => {
+    const s = room.seats.find(x => x.name === n);
+    return avatarHTML(n, "xl" + (s && s.kind === "npc" ? " npc" : ""));
+  }).join("");
+  $("finH").innerHTML = t.title;
+  $("finLine").textContent = t.line;
+  $("finale").hidden = false;
+}
+$("finClose").onclick = () => { $("finale").hidden = true; };
 
 /* ---------------- room lifecycle ---------------- */
 
@@ -720,33 +847,62 @@ function newCode(){
   return Array.from({length:4}, () => A[Math.floor(Math.random()*A.length)]).join("");
 }
 function attach(code){
-  roomCode = code; lastSnap = null;
+  if (unsub){ unsub(); unsub = null; }     // never listen to two tables at once
+  roomCode = code; lastSnap = null; room = null;
   roomRef = ref(db, "rooms/" + code);
-  try { localStorage.setItem(LS.room, code); } catch {}
+  try { localStorage.setItem(LS.room, code); isDealer = dealerOf(code); } catch {}
   const url = new URL(location.href);
-  url.searchParams.set("t", code);
+  url.searchParams.set("t", code); url.searchParams.delete("dealer");
   history.replaceState(null, "", url);
 
-  onValue(roomRef, snap => {
+  unsub = onValue(roomRef, snap => {
     const v = snap.val();
     if (!v){ room = null; show("landing"); toast("That table is not there any more."); return; }
     if (v.game === "poker"){ location.replace("poker.html?t=" + code); return; }
+    if (lastSnap && (v.round !== lastSnap.round || v.phase !== lastSnap.phase)){ armed = null; selDie = -1; daringSpent = false; }
     room = v;
     if (mySeat && !seatById(mySeat)) mySeat = null;
+    syncDraft(lastSnap, v);
     try { sfxDiff(lastSnap, v); } catch (e) { console.warn("sound", e); }
     lastSnap = JSON.parse(JSON.stringify(v));
     render();
   }, err => toast("Lost the table. Reload to reconnect."));
 }
+function detach(){
+  if (unsub){ unsub(); unsub = null; }
+  try { localStorage.removeItem(LS.room); localStorage.removeItem(LS.seat); } catch {}
+  room = null; roomRef = null; roomCode = null; mySeat = null; isDealer = false; lastSnap = null;
+  history.replaceState(null, "", location.pathname);
+  show("landing");
+}
+/* sit down at a table that may or may not exist */
+function join(code, quiet){
+  return get(ref(db, "rooms/" + code)).then(snap => {
+    if (snap.exists()) attach(code);
+    else { show("landing"); if (!quiet) toast("No table with that code."); }
+  }).catch(() => { show("landing"); toast("Could not reach the table. Check your connection."); });
+}
 
+/* Chairs are claimed in a transaction: when four phones tap at the same moment
+   nobody's claim is lost, and two people cannot end up in one chair. */
 async function claimSeat(seatId){
-  const s = seatById(seatId);
-  if (!s || (s.claimed && s.id !== mySeat)) return;
-  if (mySeat){ const old = seatById(mySeat); if (old) old.claimed = false; }
-  s.claimed = true;
-  mySeat = s.id;
+  const s = seatById(seatId), prev = mySeat;
+  if (!s || s.kind !== "pc" || (s.claimed && s.id !== prev)) return;
+  let res;
+  try {
+    res = await runTransaction(roomRef, cur => {
+      if (!cur || !cur.seats) return cur;
+      const t = cur.seats.find(x => x.id === seatId);
+      if (!t || (t.claimed && seatId !== prev)) return;        // gone, or somebody beat us to it
+      if (prev && prev !== seatId){ const o = cur.seats.find(x => x.id === prev); if (o) o.claimed = false; }
+      t.claimed = true;
+      return cur;
+    });
+  } catch (e){ return toast("Could not reach the table. Check your connection."); }
+  if (!res.committed) return toast("Somebody else just took that chair.");
+  mySeat = seatId;
   try { localStorage.setItem(LS.seat, mySeat); } catch {}
-  await save();
+  render();
   toast(`You are ${s.name}.`);
 }
 
@@ -755,31 +911,39 @@ async function claimSeat(seatId){
 $("btnCreatePoker").onclick = () => { location.href = "poker.html?new=1"; };
 $("btnCreate").onclick = async () => {
   const code = newCode();
-  room = makeRoom("king", ["Sassafras","Sister Maple","Fizzwick","Ryn"]);
   isDealer = true; mySeat = null;
-  try { localStorage.setItem(LS.dealer, code); localStorage.removeItem(LS.seat); } catch {}
+  try { markDealer(code); localStorage.removeItem(LS.seat); } catch {}
   attach(code);
+  room = makeRoom("king", ["Sassafras","Sister Maple","Fizzwick","Ryn"]);
   await save();
 };
 $("btnJoin").onclick = () => {
   const code = $("joinCode").value.toUpperCase().replace(/[^A-Z]/g,"").slice(0,4);
   if (code.length !== 4) return toast("Four letters, as the dealer gave them to you.");
-  attach(code);
+  join(code);
 };
 $("joinCode").addEventListener("keydown", e => { if (e.key === "Enter") $("btnJoin").click(); });
 
 $("btnCopyLink").onclick = async () => {
-  const url = new URL(location.href); url.searchParams.set("t", roomCode);
+  const url = new URL(location.href); url.search = "?t=" + roomCode;
   try { await navigator.clipboard.writeText(url.toString()); toast("Link copied. Send it to the table."); }
   catch { toast(url.toString()); }
 };
 $("btnLeaveLobby").onclick = () => {
-  try { localStorage.removeItem(LS.room); localStorage.removeItem(LS.seat); } catch {}
-  room = null; roomRef = null; mySeat = null; isDealer = false;
-  history.replaceState(null, "", location.pathname);
-  show("landing");
+  const s = mySeat && seatById(mySeat);
+  if (s && s.claimed){ s.claimed = false; save(); }      // give the chair back on the way out
+  detach();
 };
-$("btnSeatSwap").onclick = () => { if (!isDealer) return; room.phase = "lobby"; save(); };
+$("btnSeatSwap").onclick = () => {
+  if (!isDealer) return;
+  if (room.phase !== "lobby") room.back = room.phase;    // so the game can be picked up again
+  room.phase = "lobby"; save();
+};
+$("btnMenu").onclick = () => { location.href = location.pathname + "?menu=1"; };
+$("btnResume").onclick = () => {
+  if (!isDealer || !room.back) return;
+  room.phase = room.back; room.back = null; lastRound = room.round; save();
+};
 const paintSound = () => { $("btnSound").textContent = sfx.label(); };
 paintSound();
 $("btnSound").onclick = () => { sfx.cycle(); paintSound(); sfx.unlock(); sfx.bid(); };
@@ -787,29 +951,34 @@ document.addEventListener("pointerdown", () => sfx.unlock(), { once: true });
 $("btnCast").onclick = () => {
   castMode = !castMode;
   $("btnCast").textContent = castMode ? "Casting" : "Cast";
-  toast(castMode ? "Your hand is hidden. Safe to share the screen." : "Your hand is back.");
+  $("btnCast").classList.toggle("on", castMode);
+  toast(castMode ? "The dice are hidden. Safe to share the screen." : "The dice are back.");
   render();
 };
 $("lobbyOpp").onchange = () => {
   room.opponent = $("lobbyOpp").value;
   const pcs = room.seats.filter(s => s.kind === "pc");
   room.seats = pcs.concat(npcSeatsFor(room.opponent, pcs.length));
+  room.back = null; room.round = 0;
   updatePool(); save();
 };
 $("lobbyNames").oninput = updatePool;
+$("lobbyNames").onchange = syncSeatNames;
 $("btnDeal").onclick = () => {
-  const names = $("lobbyNames").value.split("\n").map(s => s.trim()).filter(Boolean);
+  const names = [...new Set($("lobbyNames").value.split("\n").map(s => s.trim()).filter(Boolean))];
   if (!names.length) return toast("Put at least one name in.");
+  // a chair keeps its id from the lobby, so whoever sat down is still sat down after the deal
   const keep = {};
-  room.seats.forEach(s => { if (s.claimed && s.kind === "pc") keep[s.name] = s.id; });
+  room.seats.forEach(s => { if (s.kind === "pc") keep[s.name] = s; });
   const next = makeRoom($("lobbyOpp").value, names);
   next.seats.forEach(s => {
-    if (s.kind === "pc" && keep[s.name]){ s.id = keep[s.name]; s.claimed = true; }
+    const k = s.kind === "pc" && keep[s.name];
+    if (k){ s.id = k.id; s.claimed = !!k.claimed; }
   });
   next.turn = next.seats[0].id; next.opener = next.seats[0].id;
   next.log = room.log || [];
   room = next;
-  lastRound = -1;
+  lastRound = -1; seenFinale = null;
   dealRound();
 };
 
@@ -828,14 +997,24 @@ if (db){
   try {
     mySeat  = localStorage.getItem(LS.seat) || null;
   } catch {}
-  const code = codeFromURL() || (() => { try { return localStorage.getItem(LS.room); } catch { return null; } })();
-  if (code){
-    try { isDealer = localStorage.getItem(LS.dealer) === code; } catch {}
-    // only attach if the table actually exists
-    get(ref(db, "rooms/" + code)).then(snap => {
-      if (snap.exists()) attach(code);
-      else { show("landing"); if (codeFromURL()) toast("No table with that code."); }
-    }).catch(() => show("landing"));
+  const fromURL = codeFromURL();
+  const last = (() => { try { return localStorage.getItem(LS.room); } catch { return null; } })();
+  const code = fromURL || last;
+  if (new URLSearchParams(location.search).get("menu")){
+    // the dealer came for the menu, to open the other game: their tables stay one tap away
+    history.replaceState(null, "", location.pathname);
+    const mine = dealerCodes().slice(-3).reverse();
+    if (mine.length){
+      $("landingNote").innerHTML = "Your tables: " + mine.map(c => `<button class="tablelink" data-code="${c}">${c}</button>`).join(" ");
+      $("landingNote").querySelectorAll("[data-code]").forEach(b => { b.onclick = () => join(b.dataset.code); });
+    }
+    show("landing");
+  } else if (code){
+    // the way back in if the dealer's device forgets it was the dealer: open the link with &dealer=1
+    if (fromURL && new URLSearchParams(location.search).get("dealer")){
+      try { markDealer(code); } catch {}
+    }
+    join(code, !fromURL);       // only attach if the table actually exists
   } else {
     show("landing");
   }

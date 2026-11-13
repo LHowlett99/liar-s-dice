@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pirata+One&family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@500;600;700&display=swap">
-<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="styles.css?v=4">
 </head>
 <body data-theme="poker">
 
@@ -87,7 +87,8 @@
       <div class="bar-actions">
         <button class="btn ghost sm" id="btnSound" title="Cycle sound: everything, table only, or silent">Sound: all</button>
         <button class="btn ghost sm" id="btnCast" title="Hide the cards for screen sharing">Cast</button>
-        <button class="btn ghost sm" id="btnLobby" hidden>Seat</button>
+        <button class="btn ghost sm" id="btnMenu" hidden title="Open the home screen to start the other game. This table stays as it is.">Menu</button>
+        <button class="btn ghost sm" id="btnLobby" hidden title="Back to the lobby, to change who is in the seat">Lobby</button>
       </div>
     </header>
 
@@ -95,7 +96,7 @@
 
     <section class="pk-felt" id="felt">
       <div class="pk-side">
-        <p class="eyebrow" id="houseName">The House</p>
+        <div class="pk-who" id="houseWho"></div>
         <div class="pk-row" id="houseRow"></div>
         <p class="pk-rank" id="houseRank"></p>
       </div>
@@ -103,7 +104,7 @@
       <div class="pk-side">
         <p class="pk-rank" id="heroRank"></p>
         <div class="pk-row" id="heroRow"></div>
-        <p class="eyebrow" id="heroName">Sassafras</p>
+        <div class="pk-who" id="heroWho"></div>
       </div>
     </section>
 
@@ -133,10 +134,10 @@
     <h2 class="reveal-h" id="revH"></h2>
     <div class="pk-rev" id="revHands"></div>
     <p class="reveal-verdict" id="revVerdict"></p>
-    <button class="btn primary" id="revClose">Carry on</button>
+    <div class="actions center"><button class="btn primary" id="revClose">Back to the table</button></div>
   </div>
 </div>
 
-<script type="module" src="poker.js"></script>
+<script type="module" src="poker.js?v=4"></script>
 </body>
 </html>
