@@ -9,8 +9,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getDatabase, ref, onValue, set, get, runTransaction }
   from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 import { firebaseConfig } from "./firebase-config.js";
-import { sfx } from "./sfx.js?v=4";
-import { avatarHTML, dealerOf, markDealer, dealerCodes } from "./cast.js?v=4";
+import { sfx } from "./sfx.js?v=5";
+import { avatarHTML, dealerOf, markDealer, dealerCodes } from "./cast.js?v=5";
 
 /* ---------------- constants ---------------- */
 
@@ -47,7 +47,7 @@ function sfxDiff(prev, cur){
   const claimed = r => (r.seats || []).filter(s => s.kind === "pc" && s.claimed).length;
   if (cur.phase === "lobby"){ if (claimed(cur) > claimed(prev)) sfx.sit(); return; }
   if (cur.phase === "over" && prev.phase !== "over") return sfx.over();
-  if (cur.reveal && (!prev.reveal || prev.reveal.id !== cur.reveal.id)) return sfx.reveal();
+  if (cur.reveal && (!prev.reveal || prev.reveal.id !== cur.reveal.id)) return cur.reveal.kind === "spot" ? sfx.spot() : sfx.challenge();
   if (cur.phase === "bidding" && ((cur.round || 0) > (prev.round || 0) || prev.phase === "lobby")){
     const was = (prev.seats || []).reduce((a, s) => a + s.count, 0), now = (cur.seats || []).reduce((a, s) => a + s.count, 0);
     if (now < was) sfx.lose();
@@ -203,7 +203,32 @@ function doChallenge(){
   save();
 }
 
+/* Spot on: the player whose turn it is says the standing bid is exactly right.
+   If it is, nobody loses a die and they open the next round. If not, they lose one. */
+function doSpotOn(){
+  const caller = seatById(room.turn);
+  const bidder = seatById(room.bid.by);
+  const got = tallyFace(room.bid.face);
+  const spot = got === room.bid.count;
+  room.reveal = {
+    id: uid(), kind: "spot",
+    challenger: caller.id, bidder: bidder.id,
+    face: room.bid.face, need: room.bid.count, got,
+    loser: spot ? null : caller.id, overbid: got < room.bid.count, spot,
+    hands: room.seats.filter(s => !s.out).map(s => ({ id:s.id, name:s.name, dice:(s.dice||[]).slice() }))
+  };
+  room.phase = "reveal";
+  logAdd(`<b>${esc(caller.name)}</b> calls <span class="hi">spot on</span> &mdash; there ${got === 1 ? "was" : "were"} <b>${got}</b> &times; ${room.bid.face}. ` +
+         (spot ? `<span class="hi">Dead right. Nobody loses a die.</span>` : `<span class="lo">${esc(caller.name)} loses a die.</span>`));
+  save();
+}
+
 function nextRound(){
+  if (!room.reveal.loser){                       // a spot on call that was right: no dice lost
+    room.opener = room.reveal.challenger;
+    room.reveal = null;
+    return dealRound();
+  }
   const loser = seatById(room.reveal.loser);
   loser.count -= 1;
   if (loser.count <= 0){
@@ -249,7 +274,8 @@ function endingText(){
 /* Poker Face answers a challenge, so it also works while the hands are showing;
    everything else only makes sense while the round is still being bid */
 function traitOpen(id){
-  return room.phase === "bidding" || (id === "poker" && room.phase === "reveal");
+  return room.phase === "bidding" ||
+    (id === "poker" && room.phase === "reveal" && !(room.reveal && room.reveal.kind === "spot"));
 }
 
 function useTrait(t){
@@ -564,9 +590,11 @@ function buildControls(me){
   </div>
   <div class="actions">
     <button class="btn primary" id="cBid">Bid ${draft.count} × ${draft.face}</button>
-    ${room.bid ? `<button class="btn danger" id="cChal">Challenge</button>` : ""}
+    ${room.bid ? `<button class="btn danger" id="cChal">Challenge</button>
+      <button class="btn spot" id="cSpot">Spot on</button>` : ""}
   </div>`;
-  if (room.bid) h += `<p class="hint">Raise the count, the face, or both. Ones are wild.</p>`;
+  if (room.bid) h += `<p class="hint">Raise the count, the face, or both. Ones are wild.
+    <b>Spot on</b> says the bid is exactly right: if it is, nobody loses a die; if not, you do.</p>`;
   return h + dealerStrip();
 }
 function dealerStrip(){
@@ -585,6 +613,7 @@ function wireControls(){
   });
   on("cBid", () => { if (raises()) placeBid(draft.count, draft.face); });
   on("cChal", doChallenge);
+  on("cSpot", doSpotOn);
   on("cNext", nextRound);
   on("cRedeal", redeal);
   on("cNew",  newTable);
@@ -658,7 +687,8 @@ function renderDealer(){
       </div>
       <div class="actions" style="margin-top:10px">
         <button class="btn primary" id="hBid">Bid ${draft.count} &times; ${draft.face}</button>
-        ${room.bid ? `<button class="btn danger" id="hChal">Challenge</button>` : ""}
+        ${room.bid ? `<button class="btn danger" id="hChal">Challenge</button>
+          <button class="btn spot" id="hSpot">Spot on</button>` : ""}
       </div>
     </div>`;
   } else if (room.phase === "bidding" && turnSeat){
@@ -745,6 +775,7 @@ function renderDealer(){
   });
   on("hBid", () => { if (raises()) placeBid(draft.count, draft.face); });
   on("hChal", doChallenge);
+  on("hSpot", doSpotOn);
 
   on("dNext", nextRound);
   on("dShow", () => { seenReveal = null; maybeShowReveal(); });
@@ -774,9 +805,15 @@ function maybeShowReveal(){
   seenReveal = r.id;
 
   const bidder = seatById(r.bidder), challenger = seatById(r.challenger), loser = seatById(r.loser);
-  $("revEyebrow").textContent = "Hands on the table";
-  $("revH").innerHTML = `${esc(challenger.name)} calls ${esc(bidder.name)} on
-    <span class="call">${r.need} &times; ${dieHTML(r.face, "sm")}</span>`;
+  const isSpot = r.kind === "spot";
+  const cName = esc(challenger ? challenger.name : "?"), bName = esc(bidder ? bidder.name : "?");
+  $("revEyebrow").textContent = isSpot ? "Spot on!" : "Challenge!";
+  $("revH").innerHTML = isSpot
+    ? `${cName} says ${bName} is dead right:
+       <span class="call">${r.need} &times; ${dieHTML(r.face, "sm")}</span>`
+    : `${cName} calls ${bName} a liar on
+       <span class="call">${r.need} &times; ${dieHTML(r.face, "sm")}</span>`;
+  $("reveal").querySelector(".reveal-box").classList.toggle("spotcall", isSpot);
 
   // the hands land one after another, then the matching dice light up as the count climbs
   const rows = r.hands.length, lead = 420 + rows * 130;
@@ -791,9 +828,13 @@ function maybeShowReveal(){
     </div>`).join("");
 
   $("revLabel").innerHTML = `showing ${r.face}${r.face === 1 ? "" : "s, ones wild"}`;
-  $("revVerdict").innerHTML = r.overbid
-    ? `The bid was too high. <span class="lose">${esc(loser.name)}</span> loses a die.`
-    : `The bid was good. <span class="lose">${esc(loser.name)}</span> loses a die for calling it.`;
+  $("revVerdict").innerHTML = isSpot
+    ? (r.spot
+        ? `<span class="safe">Spot on!</span> Exactly ${r.need}. Nobody loses a die, and ${cName} opens the next round.`
+        : `Not spot on: there ${r.got === 1 ? "was" : "were"} ${r.got}, not ${r.need}. <span class="lose">${cName}</span> loses a die.`)
+    : r.overbid
+      ? `The bid was too high. <span class="lose">${esc(loser.name)}</span> loses a die.`
+      : `The bid was good. <span class="lose">${esc(loser.name)}</span> loses a die for calling it.`;
   $("revVerdict").classList.remove("on"); $("revHands").classList.remove("done");
   $("revNext").hidden = !isDealer;
   $("reveal").hidden = false;
@@ -801,7 +842,10 @@ function maybeShowReveal(){
 
   // count up to the tally, one knock per die
   const el = $("revCount"); let n = 0; el.textContent = "0";
-  const done = () => { $("revVerdict").classList.add("on"); $("revHands").classList.add("done"); };
+  const done = () => {
+    $("revVerdict").classList.add("on"); $("revHands").classList.add("done");
+    if (isSpot && r.spot) sfx.spotWin(); else sfx.verdict();
+  };
   const step = () => {
     if (seenReveal !== r.id || $("reveal").hidden) return;
     if (n >= r.got) return done();
@@ -975,9 +1019,15 @@ $("btnDeal").onclick = () => {
     const k = s.kind === "pc" && keep[s.name];
     if (k){ s.id = k.id; s.claimed = !!k.claimed; }
   });
+  // a fresh seating order every game, house seats mixed in, and whoever lands first opens
+  for (let i = next.seats.length - 1; i > 0; i--){
+    const j = Math.floor(Math.random() * (i + 1));
+    [next.seats[i], next.seats[j]] = [next.seats[j], next.seats[i]];
+  }
   next.turn = next.seats[0].id; next.opener = next.seats[0].id;
   next.log = room.log || [];
   room = next;
+  logAdd(`<b>Seating, round the table:</b> ${next.seats.map(s => esc(s.name)).join(" &rarr; ")}.`);
   lastRound = -1; seenFinale = null;
   dealRound();
 };

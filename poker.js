@@ -8,8 +8,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getDatabase, ref, onValue, set, get }
   from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 import { firebaseConfig } from "./firebase-config.js";
-import { sfx } from "./sfx.js?v=4";
-import { avatarHTML, dealerOf, markDealer } from "./cast.js?v=4";
+import { sfx } from "./sfx.js?v=5";
+import { avatarHTML, dealerOf, markDealer } from "./cast.js?v=5";
 
 const LS = { room:"dmh.room", dealer:"dmh.dealer", hero:"dmh.hero" };
 const RANKS = "23456789TJQKA";

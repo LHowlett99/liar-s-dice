@@ -680,6 +680,10 @@ label.check input{width:18px;height:18px;accent-color:var(--green)}
 .btn.primary,.btn.danger{
   background-image:linear-gradient(180deg,rgba(255,255,255,.26),rgba(255,255,255,0) 52%,rgba(0,0,0,.18))}
 .btn.ghost{box-shadow:none}
+.btn.spot{border-color:var(--amber);color:var(--amber)}
+.btn.spot:hover:not(:disabled){box-shadow:0 0 22px -6px rgba(var(--a),.6)}
+.reveal-box.spotcall #revEyebrow{color:var(--amber)}
+#revEyebrow{color:var(--magenta);font-size:15px;letter-spacing:.24em}
 .btn.on{border-color:var(--amber);color:var(--amber)}
 .actions.center{justify-content:center}
 .card > h2::before{content:"\25C6";color:var(--green);font-size:9px;margin-right:9px;

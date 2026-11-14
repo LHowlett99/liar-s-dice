@@ -175,6 +175,46 @@ export const sfx = (() => {
       swell(0, 1.0, 1000, 140, 0.9, 0, 9, 0.7);
       for (let i = 0; i < 9; i++) click(0.1 + Math.random() * 0.6, rand(k.tick[0], k.tick[1]), rand(2, 5), rand(0.03, 0.07), 0.6, 0.4);
     },
+    /* "Liar!": a fist slammed down twice, every die on the table jumping, then the
+       hush as the cups come up. The loudest thing in the game, on purpose. */
+    challenge(){
+      const k = feel();
+      thud(0, k.knock * 0.62, 0.42, 1.5, 0.6);
+      click(0, 700, 1.1, 0.09, 1.2, 0.5);
+      thud(0.17, k.knock * 0.55, 0.5, 1.7, 0.7);
+      click(0.17, 600, 1.0, 0.1, 1.3, 0.5);
+      for (let i = 0; i < 16; i++){
+        const s = 0.19 + Math.pow(Math.random(), 1.5) * 0.45;
+        click(s, rand(k.tick[0], k.tick[1]), rand(2, 5), rand(0.03, 0.06), rand(0.6, 1.1), 0.4);
+      }
+      rustle(0.2, 0.5, 0.35, 1800, 7000, 0.4);
+      swell(0.55, 1.1, 900, 120, 0.9, 0, 9, 0.8);
+    },
+    /* "Spot on": three slow, deliberate knocks on the rail, then the cups come up */
+    spot(){
+      const k = feel();
+      [0, 0.24, 0.48].forEach((s, i) => {
+        thud(s, k.knock * (1.05 - i * 0.12), 0.2, 1.0 + i * 0.25, 0.45);
+        click(s, 1300 - i * 150, 2, 0.05, 0.8, 0.35);
+      });
+      swell(0.62, 1.0, 1000, 140, 0.8, 0, 9, 0.7);
+      for (let i = 0; i < 7; i++) click(0.7 + Math.random() * 0.5, rand(k.tick[0], k.tick[1]), rand(2, 5), rand(0.03, 0.07), 0.5, 0.4);
+    },
+    /* the count is done and somebody is about to lose a die */
+    verdict(){
+      const k = feel();
+      thud(0, k.knock * 0.48, 0.55, 1.1, 0.6);
+      click(0, 500, 1.2, 0.07, 0.6, 0.4);
+    },
+    /* a spot on call that was right: coins spill across the table */
+    spotWin(){
+      for (let i = 0; i < 11; i++){
+        const s = i * 0.055 + Math.random() * 0.04;
+        click(s, rand(3200, 5600), rand(18, 30), rand(0.08, 0.16), rand(0.7, 1.1), 0.6);
+        if (i % 3 === 0) click(s + 0.01, rand(1800, 2400), 12, 0.06, 0.4, 0.4);
+      }
+      thud(0, feel().knock * 1.2, 0.14, 0.5, 0.3);
+    },
     lose(){
       const k = feel(), gator = theme === "sinner";
       swell(0, 1.2, 320, 70, 1.0, gator ? 0.7 : 0.25, gator ? 13 : 6, 0.7);

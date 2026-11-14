@@ -10,6 +10,8 @@ The rest of this file is the setup walkthrough, kept for reference or for
 standing it back up if the Firebase project ever goes away.
 
 - Ones are wild
+- On your turn you can raise, **Challenge**, or call **Spot on** (see below)
+- The seating order is shuffled every new game, house seats mixed in, and the log lists it
 - Bids, permanent dice loss and elimination are tracked
 - All six special traits, **once each per game** (twice with expertise), and only for
   the character who has the proficiency. The grants come off the party's real sheets
@@ -122,6 +124,14 @@ Anyone who opens the link after the deal can still sit: an empty chair shows up 
 button at the top of their screen. **Seats** in the top bar sends everyone back to
 the lobby to re-pick; **Back to the game in progress** picks the same game up again.
 
+### Spot on
+
+Instead of raising or challenging, the player whose turn it is can say the standing
+bid is **exactly** right. The hands come up as for a challenge. If the count is spot
+on, nobody loses a die and the caller opens the next round. If it is off in either
+direction, the caller loses a die. The house can call it too, from the Dealer panel.
+Poker Face does not work against a spot on call, since nobody is being called a liar.
+
 ### Cheats
 
 Each trait is once per game per proficiency (twice with expertise), not three uses
@@ -160,7 +170,9 @@ You bid and challenge for the house from the **Dealer** panel on its turn.
 
 Everything is made from filtered noise in the browser, so there are no audio files and
 nothing pings: dice clattering on timber, knuckles on the rail, cloth, creaking boards
-and water. It is quiet on purpose, to sit under your music. The **Sound** button in
+and water. It is quiet on purpose, to sit under your music, except for a challenge:
+a fist slammed down twice and every die jumping, so nobody misses it. Spot on is three
+slow knocks on the rail, and a right call spills coins. The **Sound** button in
 the top bar cycles three ways, remembered per device:
 
 - **all**: the table sounds plus the odd noise from the room (creaks, drips and
